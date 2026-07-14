@@ -1,12 +1,21 @@
 # Ditto App Roadmap
 
-*A student-first task scheduler for the Congressional App Challenge*
+*A personal task scheduler for the Congressional App Challenge*
 
 **Project:** Flutter app  
 **Plan focus:** Phases 1-5  
 **Date:** July 14, 2026
 
-This roadmap breaks the Ditto project into clear build phases. The main goal is to create a reliable, demo-ready Flutter app that helps students turn tasks and available time into a realistic daily schedule.
+This roadmap breaks the Ditto project into clear build phases. The main goal is to create a reliable, demo-ready Android Flutter app that helps people turn tasks and available time into a realistic daily schedule.
+
+## Phase 1 progress
+
+- [x] Define Ditto as a daily personal planner for anyone with tasks to organize.
+- [x] Choose Android as the MVP platform.
+- [x] Define task importance as Optional, Can wait, and Must complete.
+- [x] Decide that Must complete tasks are scheduled first and lower-priority tasks are removed when necessary.
+- [x] Decide that Ditto warns and does not create an impossible schedule when required tasks still cannot fit.
+- [ ] Confirm whether Ditto is the final app name.
 
 ## Phase 1: Decide the MVP
 
@@ -14,14 +23,14 @@ This roadmap breaks the Ditto project into clear build phases. The main goal is 
 
 ### 1.1 Confirm the core idea
 
-- Confirm Ditto as a daily student planner.
-- Define the main problem: students need help turning tasks into a realistic plan.
+- Confirm Ditto as a daily personal planner.
+- Define the main problem: people need help turning tasks into a realistic plan.
 - Keep the first version focused on one-day planning instead of weekly or long-term planning.
 
 ### 1.2 Define the target user
 
-- Focus first on busy high school students.
-- Design for students managing homework, activities, chores, goals, and deadlines.
+- Design for anyone managing tasks, responsibilities, goals, and deadlines.
+- Use broad language that works for school, work, personal tasks, and appointments.
 - Keep the app simple enough to use in a few minutes each morning.
 
 ### 1.3 Choose the MVP promise
@@ -42,7 +51,7 @@ This roadmap breaks the Ditto project into clear build phases. The main goal is 
 
 - Use Flutter and Dart as the main app stack.
 - Start local-first so the demo does not depend on accounts, cloud sync, or internet access.
-- Target web and Android-ready development first unless the team chooses another priority.
+- Target Android only for the MVP.
 
 ### 1.6 Define success for the first review
 
@@ -72,7 +81,7 @@ This roadmap breaks the Ditto project into clear build phases. The main goal is 
 
 - Add the task model.
 - Build the Add Task screen.
-- Let users enter task name, due date, estimated duration, and importance.
+- Let users enter task name, due date, estimated duration, and importance: Optional, Can wait, or Must complete.
 - Show saved tasks in a task list.
 
 ### 2.4 Available time
@@ -85,9 +94,10 @@ This roadmap breaks the Ditto project into clear build phases. The main goal is 
 ### 2.5 Basic scheduling
 
 - Create the first scheduling algorithm.
-- Sort tasks by due date and importance.
+- Schedule Must complete tasks first, then Can wait tasks, then Optional tasks.
 - Fit tasks into available time blocks.
-- Skip or flag tasks that cannot fit.
+- Move lower-priority tasks out of the schedule when required tasks need the time.
+- If Must complete tasks still cannot fit, do not create a schedule; show a warning and suggest adding more available time.
 
 ### 2.6 Today timeline
 
@@ -223,7 +233,7 @@ This roadmap breaks the Ditto project into clear build phases. The main goal is 
 
 ### 5.7 Sharing
 
-- Let students share a plan with a parent, teacher, or study partner.
+- Let people share a plan with a parent, teacher, or study partner.
 - Export a simple daily agenda.
 - Keep privacy in mind.
 
