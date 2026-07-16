@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ditto-wireframes.schema.json",
+  "title": "Ditto wireframe description",
+  "type": "object",
+  "required": ["artifact", "app", "screens"],
+  "properties": {
+    "artifact": {"type": "object", "required": ["name", "version", "platform", "source"]},
+    "app": {"type": "object", "required": ["name", "purpose", "primary_navigation"]},
+    "screens": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "purpose", "components", "actions"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "name": {"type": "string"},
+          "route_hint": {"type": "string"},
+          "purpose": {"type": "string"},
+          "entry_points": {"type": "array", "items": {"type": "string"}},
+          "components": {"type": "array", "items": {"type": "object", "required": ["type"]}},
+          "actions": {"type": "array", "items": {"type": "string"}},
+          "states": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "sample_data": {"type": "object"}
+  }
+}

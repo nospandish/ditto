@@ -1,0 +1,113 @@
+{
+  "$schema": "./ditto-wireframes.schema.json",
+  "artifact": {
+    "name": "Ditto MVP wireframes",
+    "version": "1.0.0",
+    "created": "2026-07-16",
+    "platform": "Android",
+    "orientation": "portrait",
+    "source": "ditto-screen-wireframes.html"
+  },
+  "app": {
+    "name": "Ditto",
+    "purpose": "Turn tasks and available time into a realistic one-day schedule.",
+    "primary_navigation": ["today", "tasks", "available_time"]
+  },
+  "screens": [
+    {
+      "id": "today",
+      "name": "Today",
+      "route_hint": "/today",
+      "purpose": "Show the generated agenda and current progress.",
+      "entry_points": ["app launch", "bottom navigation"],
+      "components": [
+        {"type": "date_header", "value": "Thursday, July 16"},
+        {"type": "progress_summary", "fields": ["completed_count", "planned_count", "remaining_duration"]},
+        {"type": "timeline", "item_fields": ["start_time", "task_name", "importance", "duration", "completion_state"]},
+        {"type": "button", "id": "regenerate", "label": "Regenerate remaining plan"},
+        {"type": "bottom_navigation", "items": ["Today", "Tasks", "Time"]}
+      ],
+      "actions": ["mark task complete", "regenerate remaining schedule", "switch primary screen"],
+      "states": ["scheduled", "empty", "completed", "plan_outdated"]
+    },
+    {
+      "id": "tasks",
+      "name": "Tasks",
+      "route_hint": "/tasks",
+      "purpose": "Review saved tasks and begin adding a task.",
+      "entry_points": ["bottom navigation", "generate plan review action"],
+      "components": [
+        {"type": "search_field", "id": "task_search", "placeholder": "Search tasks"},
+        {"type": "task_list", "item_fields": ["name", "due_date", "minimum_duration", "maximum_duration", "importance"]},
+        {"type": "button", "id": "add_task", "label": "Add"},
+        {"type": "bottom_navigation", "items": ["Today", "Tasks", "Time"]}
+      ],
+      "actions": ["search tasks", "open add task", "switch primary screen"],
+      "states": ["populated", "empty", "no_search_results"]
+    },
+    {
+      "id": "add_task",
+      "name": "Add Task",
+      "route_hint": "/tasks/new",
+      "purpose": "Capture the information required to schedule one task.",
+      "entry_points": ["Tasks add button"],
+      "components": [
+        {"type": "text_field", "id": "name", "label": "Task name", "required": true},
+        {"type": "date_picker", "id": "due_date", "label": "Due date", "required": true},
+        {"type": "duration_picker", "id": "minimum_duration", "label": "Minimum", "required": true, "unit": "minutes"},
+        {"type": "duration_picker", "id": "maximum_duration", "label": "Maximum", "required": true, "unit": "minutes"},
+        {"type": "segmented_control", "id": "importance", "label": "Importance", "required": true, "options": ["Optional", "Can wait", "Must complete"]},
+        {"type": "button", "id": "save_task", "label": "Save task", "emphasis": "primary"},
+        {"type": "button", "id": "cancel", "label": "Cancel", "emphasis": "low"}
+      ],
+      "validation": ["name is not empty", "minimum duration is positive", "maximum duration is at least minimum duration", "importance is selected"],
+      "actions": ["save task", "cancel"]
+    },
+    {
+      "id": "available_time",
+      "name": "Available Time",
+      "route_hint": "/available-time",
+      "purpose": "Define the time windows Ditto may use today.",
+      "entry_points": ["bottom navigation", "plan setup flow"],
+      "components": [
+        {"type": "date_header", "value": "Thursday, July 16"},
+        {"type": "time_window_list", "item_fields": ["start_time", "end_time"]},
+        {"type": "button", "id": "add_time_window", "label": "Add"},
+        {"type": "availability_summary", "fields": ["total_available_duration", "required_work_fit_state"]},
+        {"type": "button", "id": "continue", "label": "Continue to plan", "emphasis": "primary"},
+        {"type": "bottom_navigation", "items": ["Today", "Tasks", "Time"]}
+      ],
+      "actions": ["add time window", "edit time window", "delete time window", "continue to generate plan"],
+      "states": ["available", "empty", "overlapping_windows", "insufficient_time"]
+    },
+    {
+      "id": "generate_plan",
+      "name": "Generate Plan",
+      "route_hint": "/generate-plan",
+      "purpose": "Confirm planning inputs and generate today's schedule.",
+      "entry_points": ["Available Time continue button", "Today empty state"],
+      "components": [
+        {"type": "input_summary", "fields": ["task_count", "must_complete_duration", "available_duration"]},
+        {"type": "scheduling_explanation", "priority_order": ["Must complete", "Can wait", "Optional"], "duration_policy": "Use up to maximum duration and reduce toward minimum only when needed."},
+        {"type": "button", "id": "generate", "label": "Generate my plan", "emphasis": "primary"},
+        {"type": "button", "id": "review_tasks", "label": "Review tasks", "emphasis": "low"}
+      ],
+      "actions": ["generate schedule", "review tasks", "return to available time"],
+      "outcomes": [
+        {"id": "success", "destination": "today"},
+        {"id": "impossible_schedule", "behavior": "Do not create a schedule; identify required tasks that do not fit and suggest adding available time."}
+      ]
+    }
+  ],
+  "sample_data": {
+    "tasks": [
+      {"name": "Finish history outline", "due": "today", "minimum_minutes": 45, "maximum_minutes": 60, "importance": "Must complete"},
+      {"name": "Practice presentation", "due": "tomorrow", "minimum_minutes": 30, "maximum_minutes": 45, "importance": "Can wait"},
+      {"name": "Reply to emails", "due": null, "minimum_minutes": 15, "maximum_minutes": 30, "importance": "Optional"}
+    ],
+    "available_time": [
+      {"start": "09:00", "end": "12:00"},
+      {"start": "13:00", "end": "15:30"}
+    ]
+  }
+}
