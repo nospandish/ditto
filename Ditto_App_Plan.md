@@ -2,7 +2,7 @@
 
 *A personal task scheduler for turning to-do lists into realistic daily plans*
 
-**Working name:** Ditto  
+**App name:** Ditto  
 **Project:** Android Flutter app for the Congressional App Challenge
 **Plan stage:** Early MVP concept  
 **Date:** July 14, 2026
@@ -23,7 +23,7 @@ Ditto is for anyone who wants help organizing tasks and making a realistic daily
 
 The MVP should focus on one useful promise: after entering tasks and free time, a person gets a realistic plan for today.
 
-- **Task capture:** Let the user enter a task name, due date, estimated duration, and importance: Optional, Can wait, or Must complete.
+- **Task capture:** Let the user enter a task name, due date, required time range, and importance: Optional, Can wait, or Must complete.
 - **Available time:** Let the user choose the blocks of time they can work during the day.
 - **Automatic schedule:** Create time blocks that prioritize urgent and important work while fitting inside the user's available hours.
 - **Today view:** Show the planned agenda in a clean timeline that is easy to follow during the day.
@@ -33,7 +33,7 @@ The MVP should focus on one useful promise: after entering tasks and free time, 
 
 ### 1. Understand each task
 
-Ditto collects the task name, deadline, estimated time, and importance. These details give the app enough information to decide which work needs attention first.
+Ditto collects the task name, deadline, required time range, and importance. Each task must include a minimum and maximum amount of time. These details give the app enough information to decide which work needs attention first and how much the task can be adjusted.
 
 ### 2. Respect the user's actual day
 
@@ -41,7 +41,7 @@ The schedule only uses time the user marks as available. It should avoid assumin
 
 ### 3. Build an achievable order
 
-Must complete tasks come first, followed by Can wait tasks and then Optional tasks. Longer work can be split into manageable sessions when helpful, and the app should leave room for breaks and unexpected changes.
+Must complete tasks come first, followed by Can wait tasks and then Optional tasks. Ditto should try to give each scheduled task as much time as possible, up to its maximum time. If the day is too full, Ditto can squeeze a task down toward its minimum time so higher-priority work still fits. Longer work can be split into manageable sessions when helpful.
 
 ### 4. Make changes easy
 
@@ -49,7 +49,11 @@ If the user finishes early, falls behind, or adds a new task, Ditto can rebuild 
 
 ### 5. Handle an impossible schedule honestly
 
-If Must complete tasks do not fit inside the user's available time, Ditto first removes lower-priority tasks from the schedule. If the required tasks still cannot fit, Ditto does not create a schedule. It shows a clear warning, identifies the required work that could not fit, and suggests adding more available time.
+If Must complete tasks do not fit inside the user's available time, Ditto first removes lower-priority tasks from the schedule and reduces scheduled tasks toward their minimum time. If the required tasks still cannot fit, Ditto does not create a schedule. It shows a clear warning, identifies the required work that could not fit, and suggests adding more available time.
+
+### 6. Use task time ranges
+
+Every task must include a minimum and maximum time estimate. For example, a task could need 30-60 minutes. Ditto should use as much time as possible when the day has room, but it can reduce the task toward 30 minutes if the schedule is crowded. If even the minimum time cannot fit for required work, Ditto should warn the user instead of creating an unrealistic plan.
 
 ## Simple user flow
 
@@ -72,6 +76,12 @@ If Must complete tasks do not fit inside the user's available time, Ditto first 
 
 **Platform:** Build the MVP for Android only.
 
+**Task duration:** Every task must include a time range with a minimum and maximum duration.
+
+**Breaks:** Do not add automatic break time in the MVP.
+
+**MVP screens:** Build Today, Tasks, Add Task, Available Time, and Generate Plan. Do not build a separate Task Details screen for the first version.
+
 **Data:** Store tasks and schedules locally for the MVP so the app is dependable during a live demo.
 
 **Advanced features:** Fixed events, accounts, cloud sync, notifications, maps, camera features, and AI are not required for the first version. Fixed events can be added later so Ditto avoids scheduling tasks during work, school, appointments, or practices.
@@ -83,14 +93,13 @@ If Must complete tasks do not fit inside the user's available time, Ditto first 
 - [x] Define task importance as Optional, Can wait, and Must complete.
 - [x] Decide that Must complete tasks are scheduled first and lower-priority tasks are removed when necessary.
 - [x] Decide that Ditto warns and does not create an impossible schedule when required tasks still cannot fit.
-- [ ] Confirm whether Ditto is the final app name.
+- [x] Confirm Ditto as the final app name.
+- [x] Require every task to include a minimum and maximum time range.
+- [x] Decide that Ditto should use as much task time as possible, then squeeze tasks toward minimum time when needed.
+- [x] Decide that the MVP will not include automatic break time.
+- [x] Confirm MVP screens: Today, Tasks, Add Task, Available Time, and Generate Plan.
+- [x] Remove a separate Task Details screen from the MVP.
 
 ## Next decisions to confirm
 
-**App name:** Decide whether Ditto is the final name.
-
-**Schedule style:** Decide how much break time the app should include.
-
-**Task duration:** Confirm whether every task must have an estimated duration.
-
-**MVP screens:** Likely screens are Today, Add Task, Available Time, Generate Schedule, and Task Details.
+Phase 1 decisions are complete. The next step is to begin Phase 2 after the user gives explicit permission to start coding.

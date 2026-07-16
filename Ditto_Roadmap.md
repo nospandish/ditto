@@ -15,7 +15,12 @@ This roadmap breaks the Ditto project into clear build phases. The main goal is 
 - [x] Define task importance as Optional, Can wait, and Must complete.
 - [x] Decide that Must complete tasks are scheduled first and lower-priority tasks are removed when necessary.
 - [x] Decide that Ditto warns and does not create an impossible schedule when required tasks still cannot fit.
-- [ ] Confirm whether Ditto is the final app name.
+- [x] Confirm Ditto as the final app name.
+- [x] Require every task to include a minimum and maximum time range.
+- [x] Decide that Ditto should use as much task time as possible, then squeeze tasks toward minimum time when needed.
+- [x] Decide that the MVP will not include automatic break time.
+- [x] Confirm MVP screens: Today, Tasks, Add Task, Available Time, and Generate Plan.
+- [x] Remove a separate Task Details screen from the MVP.
 
 ## Phase 1: Decide the MVP
 
@@ -24,6 +29,7 @@ This roadmap breaks the Ditto project into clear build phases. The main goal is 
 ### 1.1 Confirm the core idea
 
 - Confirm Ditto as a daily personal planner.
+- Confirm Ditto as the final app name.
 - Define the main problem: people need help turning tasks into a realistic plan.
 - Keep the first version focused on one-day planning instead of weekly or long-term planning.
 
@@ -36,6 +42,9 @@ This roadmap breaks the Ditto project into clear build phases. The main goal is 
 ### 1.3 Choose the MVP promise
 
 - Use this promise for the first build: enter tasks and free time, then get a realistic plan for today.
+- Require each task to include a minimum and maximum time range.
+- Use as much task time as possible, then squeeze tasks toward their minimum time if the schedule is crowded.
+- Do not add automatic break time in the MVP.
 - Avoid features that distract from the main scheduling flow.
 - Make sure the MVP can be explained clearly in the Congressional App Challenge demo.
 
@@ -46,6 +55,7 @@ This roadmap breaks the Ditto project into clear build phases. The main goal is 
 - Add Task screen for creating new tasks.
 - Available Time screen for adding free work windows.
 - Generate Plan flow for building the daily schedule.
+- Do not include a separate Task Details screen in the MVP.
 
 ### 1.5 Decide technical scope
 
@@ -81,7 +91,7 @@ This roadmap breaks the Ditto project into clear build phases. The main goal is 
 
 - Add the task model.
 - Build the Add Task screen.
-- Let users enter task name, due date, estimated duration, and importance: Optional, Can wait, or Must complete.
+- Let users enter task name, due date, minimum duration, maximum duration, and importance: Optional, Can wait, or Must complete.
 - Show saved tasks in a task list.
 
 ### 2.4 Available time
@@ -95,6 +105,8 @@ This roadmap breaks the Ditto project into clear build phases. The main goal is 
 
 - Create the first scheduling algorithm.
 - Schedule Must complete tasks first, then Can wait tasks, then Optional tasks.
+- Try to give each task as much time as possible, up to its maximum duration.
+- Squeeze tasks toward their minimum duration when the schedule is crowded.
 - Fit tasks into available time blocks.
 - Move lower-priority tasks out of the schedule when required tasks need the time.
 - If Must complete tasks still cannot fit, do not create a schedule; show a warning and suggest adding more available time.
@@ -239,4 +251,4 @@ This roadmap breaks the Ditto project into clear build phases. The main goal is 
 
 ## Recommended first milestone
 
-Confirm Phase 1 decisions, then build through Phase 2.7 and pause for review. That creates a complete basic app before adding smarter behavior or advanced features.
+Phase 1 decisions are complete. Build through Phase 2.7 next and pause for review. That creates a complete basic app before adding smarter behavior or advanced features.
