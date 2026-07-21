@@ -38,19 +38,20 @@
       "entry_points": ["bottom navigation", "generate plan review action"],
       "components": [
         {"type": "search_field", "id": "task_search", "placeholder": "Search tasks"},
-        {"type": "task_list", "item_fields": ["name", "due_date", "minimum_duration", "maximum_duration", "importance"]},
+        {"type": "task_list", "item_fields": ["name", "due_date", "minimum_duration", "maximum_duration", "importance"], "item_actions": ["edit"]},
+        {"type": "icon_button", "id": "edit_task", "label": "Edit task", "placement": "task row"},
         {"type": "button", "id": "add_task", "label": "Add"},
         {"type": "bottom_navigation", "items": ["Today", "Tasks", "Time"]}
       ],
-      "actions": ["search tasks", "open add task", "switch primary screen"],
+      "actions": ["search tasks", "open add task", "edit task", "switch primary screen"],
       "states": ["populated", "empty", "no_search_results"]
     },
     {
       "id": "add_task",
       "name": "Add Task",
       "route_hint": "/tasks/new",
-      "purpose": "Capture the information required to schedule one task.",
-      "entry_points": ["Tasks add button"],
+      "purpose": "Capture or edit the information required to schedule one task.",
+      "entry_points": ["Tasks add button", "Tasks row edit button"],
       "components": [
         {"type": "text_field", "id": "name", "label": "Task name", "required": true},
         {"type": "date_picker", "id": "due_date", "label": "Due date", "required": true},
