@@ -6,6 +6,8 @@
     "created": "2026-07-16",
     "platform": "Android",
     "orientation": "portrait",
+    "theme": "light",
+    "dark_mode": false,
     "source": "ditto-screen-wireframes.html"
   },
   "app": {
@@ -54,10 +56,9 @@
       "entry_points": ["Tasks add button", "Tasks row edit button"],
       "components": [
         {"type": "text_field", "id": "name", "label": "Task name", "required": true},
-        {"type": "date_picker", "id": "due_date", "label": "Due date", "required": true},
-        {"type": "duration_picker", "id": "minimum_duration", "label": "Minimum", "required": true, "unit": "minutes"},
-        {"type": "duration_picker", "id": "maximum_duration", "label": "Maximum", "required": true, "unit": "minutes"},
-        {"type": "segmented_control", "id": "importance", "label": "Importance", "required": true, "options": ["Optional", "Can wait", "Must complete"]},
+        {"type": "duration_stepper", "id": "minimum_duration", "label": "Minimum", "required": true, "unit": "minutes", "step": 15, "controls": ["decrease", "increase"]},
+        {"type": "duration_stepper", "id": "maximum_duration", "label": "Maximum", "required": true, "unit": "minutes", "step": 15, "controls": ["decrease", "increase"]},
+        {"type": "segmented_control", "id": "importance", "label": "Importance", "required": true, "options": ["Optional", "Can wait", "Must complete"], "color_behavior": "selected_only", "color_source": "task_priority_palette"},
         {"type": "button", "id": "save_task", "label": "Save task", "emphasis": "primary"},
         {"type": "button", "id": "cancel", "label": "Cancel", "emphasis": "low"}
       ],
@@ -75,6 +76,7 @@
         {"type": "time_window_list", "item_fields": ["start_time", "end_time"]},
         {"type": "button", "id": "add_time_window", "label": "Add"},
         {"type": "availability_summary", "fields": ["total_available_duration", "required_work_fit_state"]},
+        {"type": "availability_clock_pair", "id": "available_time_visual", "hands": false, "format": "12_hour", "highlight_source": "available_time", "clocks": [{"period": "AM", "highlighted_ranges": [{"start": "09:00", "end": "12:00"}]}, {"period": "PM", "highlighted_ranges": [{"start": "13:00", "end": "15:30"}]}]},
         {"type": "button", "id": "continue", "label": "Continue to plan", "emphasis": "primary"},
         {"type": "bottom_navigation", "items": ["Today", "Tasks", "Time"]}
       ],
@@ -96,8 +98,29 @@
       "actions": ["generate schedule", "review tasks", "return to available time"],
       "outcomes": [
         {"id": "success", "destination": "today"},
-        {"id": "impossible_schedule", "behavior": "Do not create a schedule; identify required tasks that do not fit and suggest adding available time."}
+        {"id": "impossible_schedule", "destination": "generate_plan_overloaded", "behavior": "Do not create a schedule; show the time shortfall and suggest adding available time or reviewing required tasks."}
       ]
+    },
+    {
+      "id": "generate_plan_overloaded",
+      "name": "Generate Plan — Required Work Does Not Fit",
+      "route_hint": "/generate-plan/overloaded",
+      "purpose": "Explain why no schedule can be created when must-complete work exceeds available time.",
+      "entry_points": ["Generate Plan impossible schedule outcome"],
+      "example": {
+        "must_complete_minutes": 375,
+        "available_minutes": 270,
+        "shortfall_minutes": 105
+      },
+      "components": [
+        {"type": "warning_header", "message": "Your required work does not fit"},
+        {"type": "capacity_summary", "fields": ["must_complete_duration", "available_duration", "shortfall_duration"]},
+        {"type": "impossible_schedule_notice", "message": "No plan was created", "tone": "destructive", "surface_color": "red", "text_color": "contrasting"},
+        {"type": "button", "id": "add_available_time", "label": "Add available time", "emphasis": "equal", "style": "black"},
+        {"type": "button", "id": "review_required_tasks", "label": "Review required tasks", "emphasis": "equal", "style": "black"}
+      ],
+      "actions": ["add available time", "review required tasks", "return to generate plan"],
+      "states": ["must_complete_exceeds_available_time"]
     }
   ],
   "sample_data": {

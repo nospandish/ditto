@@ -5,7 +5,14 @@
   "type": "object",
   "required": ["artifact", "app", "screens"],
   "properties": {
-    "artifact": {"type": "object", "required": ["name", "version", "platform", "source"]},
+    "artifact": {
+      "type": "object",
+      "required": ["name", "version", "platform", "theme", "dark_mode", "source"],
+      "properties": {
+        "theme": {"const": "light"},
+        "dark_mode": {"const": false}
+      }
+    },
     "app": {"type": "object", "required": ["name", "purpose", "primary_navigation"]},
     "screens": {
       "type": "array",
