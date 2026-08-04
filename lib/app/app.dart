@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../screens/today_screen.dart';
 import '../theme/app_theme.dart';
+import 'app_shell.dart';
 
 class DittoApp extends StatelessWidget {
   const DittoApp({super.key});
@@ -12,7 +12,7 @@ class DittoApp extends StatelessWidget {
       title: 'Ditto',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const TodayScreen(),
+      home: const AppShell(),
     );
   }
 }
