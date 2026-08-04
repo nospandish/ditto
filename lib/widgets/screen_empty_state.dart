@@ -7,6 +7,7 @@ class ScreenEmptyState extends StatelessWidget {
     required this.message,
     required this.actionIcon,
     required this.actionLabel,
+    this.onAction,
     super.key,
   });
 
@@ -15,6 +16,7 @@ class ScreenEmptyState extends StatelessWidget {
   final String message;
   final IconData actionIcon;
   final String actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +60,7 @@ class ScreenEmptyState extends StatelessWidget {
               ),
               const SizedBox(height: 28),
               FilledButton.icon(
-                onPressed: null,
+                onPressed: onAction,
                 icon: Icon(actionIcon),
                 label: Text(actionLabel),
               ),
