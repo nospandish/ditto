@@ -1,24 +1,235 @@
 import 'package:flutter/material.dart';
 
+import '../models/available_time_block.dart';
 import '../widgets/screen_empty_state.dart';
 
 class AvailableTimeScreen extends StatelessWidget {
-  const AvailableTimeScreen({super.key});
+  const AvailableTimeScreen({
+    required this.blocks,
+    required this.onAddBlock,
+    required this.onEditBlock,
+    required this.onDeleteBlock,
+    super.key,
+  });
+
+  final List<AvailableTimeBlock> blocks;
+  final VoidCallback onAddBlock;
+  final ValueChanged<AvailableTimeBlock> onEditBlock;
+  final ValueChanged<AvailableTimeBlock> onDeleteBlock;
+
+  int get _totalMinutes =>
+      blocks.fold(0, (total, block) => total + block.durationMinutes);
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    AvailableTimeBlock block,
+  ) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete available time?'),
+        content: const Text(
+          'This window will no longer be available for scheduling tasks.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete ?? false) onDeleteBlock(block);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Available Time')),
-      body: const SafeArea(
-        child: ScreenEmptyState(
-          icon: Icons.schedule_rounded,
-          title: 'When are you free?',
-          message:
-              'Your available time windows will appear here once you add them.',
-          actionIcon: Icons.add_rounded,
-          actionLabel: 'Add available time',
+      appBar: AppBar(
+        title: const Text('Available Time'),
+        actions: [
+          TextButton.icon(
+            onPressed: onAddBlock,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Add'),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: SafeArea(
+        child: blocks.isEmpty
+            ? ScreenEmptyState(
+                icon: Icons.schedule_rounded,
+                title: 'When are you free?',
+                message:
+                    'Your available time windows will appear here once you add them.',
+                actionIcon: Icons.add_rounded,
+                actionLabel: 'Add available time',
+                onAction: onAddBlock,
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                children: [
+                  _AvailabilitySummary(totalMinutes: _totalMinutes),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Today’s windows',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 10),
+                  for (var index = 0; index < blocks.length; index++) ...[
+                    _AvailableTimeCard(
+                      block: blocks[index],
+                      index: index,
+                      onEdit: () => onEditBlock(blocks[index]),
+                      onDelete: () => _confirmDelete(context, blocks[index]),
+                    ),
+                    if (index != blocks.length - 1) const SizedBox(height: 10),
+                  ],
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _AvailabilitySummary extends StatelessWidget {
+  const _AvailabilitySummary({required this.totalMinutes});
+
+  final int totalMinutes;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.schedule_rounded,
+            size: 30,
+            color: colorScheme.onPrimaryContainer,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _formatAvailableDuration(totalMinutes),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                Text(
+                  'available today',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AvailableTimeCard extends StatelessWidget {
+  const _AvailableTimeCard({
+    required this.block,
+    required this.index,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final AvailableTimeBlock block;
+  final int index;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final localizations = MaterialLocalizations.of(context);
+    final start = localizations.formatTimeOfDay(
+      _asTimeOfDay(block.startMinutes),
+    );
+    final end = localizations.formatTimeOfDay(_asTimeOfDay(block.endMinutes));
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.access_time_rounded),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$start – $end',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    _formatDuration(block.durationMinutes),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              key: ValueKey('edit-time-block-$index'),
+              tooltip: 'Edit available-time window',
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_outlined),
+            ),
+            IconButton(
+              key: ValueKey('delete-time-block-$index'),
+              tooltip: 'Delete available-time window',
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline_rounded),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+String _formatAvailableDuration(int minutes) => _formatDuration(minutes);
+
+String _formatDuration(int minutes) {
+  final hours = minutes ~/ 60;
+  final remainingMinutes = minutes % 60;
+  if (hours == 0) return '$remainingMinutes min';
+  if (remainingMinutes == 0) return '${hours}h';
+  return '${hours}h ${remainingMinutes}m';
+}
+
+TimeOfDay _asTimeOfDay(int minutes) {
+  return TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60);
 }
