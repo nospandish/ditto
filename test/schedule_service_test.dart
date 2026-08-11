@@ -79,4 +79,127 @@ void main() {
     expect(result.single.startMinutes, 13 * 60);
     expect(result.single.endMinutes, 14 * 60);
   });
+
+  test('keeps a large window open for a task that needs it', () {
+    final flexibleTask = DittoTask(
+      name: 'Review notes',
+      minimumMinutes: 60,
+      maximumMinutes: 60,
+      importance: TaskImportance.mustComplete,
+      dueDate: DateTime(2026, 8, 6),
+    );
+    final largeTask = DittoTask(
+      name: 'Practice exam',
+      minimumMinutes: 120,
+      maximumMinutes: 120,
+      importance: TaskImportance.mustComplete,
+      dueDate: DateTime(2026, 8, 7),
+    );
+
+    final result = service.buildSchedule(
+      tasks: [flexibleTask, largeTask],
+      availableTime: [
+        const AvailableTimeBlock(startMinutes: 9 * 60, endMinutes: 11 * 60),
+        const AvailableTimeBlock(startMinutes: 14 * 60, endMinutes: 15 * 60),
+      ],
+    );
+
+    expect(result.map((item) => item.task.name), [
+      'Practice exam',
+      'Review notes',
+    ]);
+    expect(result.first.startMinutes, 9 * 60);
+    expect(result.last.startMinutes, 14 * 60);
+  });
+
+  test('importance wins when every task cannot fit', () {
+    const mustComplete = DittoTask(
+      name: 'Submit application',
+      minimumMinutes: 60,
+      maximumMinutes: 60,
+      importance: TaskImportance.mustComplete,
+    );
+    final optionalOne = DittoTask(
+      name: 'Organize notes',
+      minimumMinutes: 30,
+      maximumMinutes: 30,
+      importance: TaskImportance.optional,
+      dueDate: DateTime(2026, 8, 6),
+    );
+    final optionalTwo = DittoTask(
+      name: 'Clean desk',
+      minimumMinutes: 30,
+      maximumMinutes: 30,
+      importance: TaskImportance.optional,
+      dueDate: DateTime(2026, 8, 6),
+    );
+
+    final result = service.buildSchedule(
+      tasks: [optionalOne, optionalTwo, mustComplete],
+      availableTime: [
+        const AvailableTimeBlock(startMinutes: 9 * 60, endMinutes: 10 * 60),
+      ],
+    );
+
+    expect(result.single.task.name, 'Submit application');
+  });
+
+  test('an earlier deadline wins after importance', () {
+    final later = DittoTask(
+      name: 'Next week task',
+      minimumMinutes: 60,
+      maximumMinutes: 60,
+      importance: TaskImportance.canWait,
+      dueDate: DateTime(2026, 8, 12),
+    );
+    final earlier = DittoTask(
+      name: 'Tomorrow task',
+      minimumMinutes: 60,
+      maximumMinutes: 60,
+      importance: TaskImportance.canWait,
+      dueDate: DateTime(2026, 8, 7),
+    );
+
+    final result = service.buildSchedule(
+      tasks: [later, earlier],
+      availableTime: [
+        const AvailableTimeBlock(startMinutes: 9 * 60, endMinutes: 10 * 60),
+      ],
+    );
+
+    expect(result.single.task.name, 'Tomorrow task');
+  });
+
+  test('task count breaks ties after importance and deadlines', () {
+    const longTask = DittoTask(
+      name: 'Long task',
+      minimumMinutes: 60,
+      maximumMinutes: 60,
+      importance: TaskImportance.optional,
+    );
+    const shortOne = DittoTask(
+      name: 'Short task one',
+      minimumMinutes: 30,
+      maximumMinutes: 30,
+      importance: TaskImportance.optional,
+    );
+    const shortTwo = DittoTask(
+      name: 'Short task two',
+      minimumMinutes: 30,
+      maximumMinutes: 30,
+      importance: TaskImportance.optional,
+    );
+
+    final result = service.buildSchedule(
+      tasks: [longTask, shortOne, shortTwo],
+      availableTime: [
+        const AvailableTimeBlock(startMinutes: 9 * 60, endMinutes: 10 * 60),
+      ],
+    );
+
+    expect(result.map((item) => item.task.name), [
+      'Short task one',
+      'Short task two',
+    ]);
+  });
 }

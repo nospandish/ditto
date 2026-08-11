@@ -9,76 +9,210 @@ class ScheduleService {
     required List<DittoTask> tasks,
     required List<AvailableTimeBlock> availableTime,
   }) {
-    final orderedTasks = [...tasks]..sort(_compareTasks);
+    if (tasks.isEmpty || availableTime.isEmpty) return [];
+
     final windows = [...availableTime]
       ..sort(
         (first, second) => first.startMinutes.compareTo(second.startMinutes),
       );
-    final schedule = <ScheduledTask>[];
-    final cursors = windows.map((window) => window.startMinutes).toList();
+    final candidates = _buildCandidates(tasks);
+    final selectedIndexes = _selectTasks(candidates, windows);
+    final selectedTasks = [
+      for (final index in selectedIndexes) candidates[index],
+    ];
+    final assignment = _assignTasks(selectedTasks, windows);
 
-    for (var taskIndex = 0; taskIndex < orderedTasks.length; taskIndex++) {
-      final task = orderedTasks[taskIndex];
-      final remainingMinimum = orderedTasks
-          .skip(taskIndex + 1)
-          .fold(0, (total, laterTask) => total + laterTask.minimumMinutes);
-      final totalTimeLeft = _totalTimeLeft(windows, cursors);
-      final desiredDuration = (totalTimeLeft - remainingMinimum).clamp(
-        task.minimumMinutes,
-        task.maximumMinutes,
-      );
-      final windowIndex = _bestWindowIndex(
-        windows: windows,
-        cursors: cursors,
-        minimumDuration: task.minimumMinutes,
-        desiredDuration: desiredDuration,
-      );
-      if (windowIndex == null) continue;
+    if (assignment == null) return [];
+    return _buildTimedSchedule(selectedTasks, assignment, windows);
+  }
 
-      final start = cursors[windowIndex];
-      final roomInWindow = windows[windowIndex].endMinutes - start;
-      final duration = desiredDuration.clamp(task.minimumMinutes, roomInWindow);
-      final end = start + duration;
-      schedule.add(
-        ScheduledTask(task: task, startMinutes: start, endMinutes: end),
+  List<_TaskCandidate> _buildCandidates(List<DittoTask> tasks) {
+    final deadlineDays = <int>{
+      for (final task in tasks)
+        if (task.dueDate != null) _dateOnlyValue(task.dueDate!),
+    }.toList()..sort();
+    final deadlineRanks = {
+      for (var index = 0; index < deadlineDays.length; index++)
+        deadlineDays[index]: index,
+    };
+    final deadlineBase = BigInt.from(tasks.length + 1);
+
+    final candidates = <_TaskCandidate>[];
+    for (var index = 0; index < tasks.length; index++) {
+      final task = tasks[index];
+      var deadlineScore = BigInt.zero;
+      if (task.dueDate != null) {
+        final rank = deadlineRanks[_dateOnlyValue(task.dueDate!)]!;
+        deadlineScore = deadlineBase.pow(deadlineDays.length - rank - 1);
+      }
+      candidates.add(
+        _TaskCandidate(
+          task: task,
+          originalIndex: index,
+          deadlineScore: deadlineScore,
+        ),
       );
-      cursors[windowIndex] = end;
     }
 
-    schedule.sort(
-      (first, second) => first.startMinutes.compareTo(second.startMinutes),
+    candidates.sort(_compareCandidates);
+    return candidates;
+  }
+
+  List<int> _selectTasks(
+    List<_TaskCandidate> candidates,
+    List<AvailableTimeBlock> windows,
+  ) {
+    final capacities = windows.map((window) => window.durationMinutes).toList()
+      ..sort((first, second) => second.compareTo(first));
+    final memo = <String, _SelectionResult>{};
+
+    _SelectionResult search(int taskIndex, List<int> remaining) {
+      if (taskIndex == candidates.length) return _SelectionResult.empty();
+
+      final key = '$taskIndex|${remaining.join(',')}';
+      final cached = memo[key];
+      if (cached != null) return cached;
+
+      var best = search(taskIndex + 1, remaining);
+      final candidate = candidates[taskIndex];
+      final triedCapacities = <int>{};
+
+      for (var windowIndex = 0; windowIndex < remaining.length; windowIndex++) {
+        final capacity = remaining[windowIndex];
+        if (capacity < candidate.task.minimumMinutes ||
+            !triedCapacities.add(capacity)) {
+          continue;
+        }
+
+        final nextRemaining = [...remaining];
+        nextRemaining[windowIndex] -= candidate.task.minimumMinutes;
+        nextRemaining.sort((first, second) => second.compareTo(first));
+        final included = search(
+          taskIndex + 1,
+          nextRemaining,
+        ).withTask(taskIndex, candidate);
+
+        if (included.score.isBetterThan(best.score)) best = included;
+      }
+
+      memo[key] = best;
+      return best;
+    }
+
+    return search(0, capacities).taskIndexes;
+  }
+
+  _AssignmentResult? _assignTasks(
+    List<_TaskCandidate> tasks,
+    List<AvailableTimeBlock> windows,
+  ) {
+    final initialRemaining = windows
+        .map((window) => window.durationMinutes)
+        .toList();
+    final initialExpandable = List<int>.filled(windows.length, 0);
+    final memo = <String, _AssignmentResult?>{};
+
+    _AssignmentResult? search(
+      int taskIndex,
+      List<int> remaining,
+      List<int> expandable,
+    ) {
+      if (taskIndex == tasks.length) {
+        var extraMinutes = 0;
+        for (var index = 0; index < windows.length; index++) {
+          extraMinutes += _minimum(remaining[index], expandable[index]);
+        }
+        return _AssignmentResult(
+          extraMinutes: extraMinutes,
+          windowIndexes: const [],
+        );
+      }
+
+      final key = '$taskIndex|${remaining.join(',')}|${expandable.join(',')}';
+      if (memo.containsKey(key)) return memo[key];
+
+      final task = tasks[taskIndex].task;
+      _AssignmentResult? best;
+
+      for (var windowIndex = 0; windowIndex < windows.length; windowIndex++) {
+        if (remaining[windowIndex] < task.minimumMinutes) continue;
+
+        final nextRemaining = [...remaining];
+        final nextExpandable = [...expandable];
+        nextRemaining[windowIndex] -= task.minimumMinutes;
+        nextExpandable[windowIndex] += _maximum(
+          0,
+          task.maximumMinutes - task.minimumMinutes,
+        );
+        final future = search(taskIndex + 1, nextRemaining, nextExpandable);
+        if (future == null) continue;
+
+        final result = _AssignmentResult(
+          extraMinutes: future.extraMinutes,
+          windowIndexes: [windowIndex, ...future.windowIndexes],
+        );
+        if (best == null || result.extraMinutes > best.extraMinutes) {
+          best = result;
+        }
+      }
+
+      memo[key] = best;
+      return best;
+    }
+
+    return search(0, initialRemaining, initialExpandable);
+  }
+
+  List<ScheduledTask> _buildTimedSchedule(
+    List<_TaskCandidate> tasks,
+    _AssignmentResult assignment,
+    List<AvailableTimeBlock> windows,
+  ) {
+    final tasksByWindow = List.generate(
+      windows.length,
+      (_) => <_TaskCandidate>[],
     );
-    return schedule;
-  }
-
-  int _totalTimeLeft(List<AvailableTimeBlock> windows, List<int> cursors) {
-    var total = 0;
-    for (var index = 0; index < windows.length; index++) {
-      total += windows[index].endMinutes - cursors[index];
+    for (var index = 0; index < tasks.length; index++) {
+      tasksByWindow[assignment.windowIndexes[index]].add(tasks[index]);
     }
-    return total;
-  }
 
-  int? _bestWindowIndex({
-    required List<AvailableTimeBlock> windows,
-    required List<int> cursors,
-    required int minimumDuration,
-    required int desiredDuration,
-  }) {
-    int? bestIndex;
-    var mostRoom = -1;
+    final schedule = <ScheduledTask>[];
+    for (var windowIndex = 0; windowIndex < windows.length; windowIndex++) {
+      final windowTasks = tasksByWindow[windowIndex]..sort(_compareCandidates);
+      final minimumTime = windowTasks.fold(
+        0,
+        (total, candidate) => total + candidate.task.minimumMinutes,
+      );
+      var extraTime = windows[windowIndex].durationMinutes - minimumTime;
+      var cursor = windows[windowIndex].startMinutes;
 
-    for (var index = 0; index < windows.length; index++) {
-      final room = windows[index].endMinutes - cursors[index];
-      if (room < minimumDuration) continue;
-      if (room >= desiredDuration) return index;
-      if (room > mostRoom) {
-        bestIndex = index;
-        mostRoom = room;
+      for (final candidate in windowTasks) {
+        final task = candidate.task;
+        final availableExtra = _maximum(
+          0,
+          task.maximumMinutes - task.minimumMinutes,
+        );
+        final taskExtra = _minimum(availableExtra, extraTime);
+        final duration = task.minimumMinutes + taskExtra;
+        schedule.add(
+          ScheduledTask(
+            task: task,
+            startMinutes: cursor,
+            endMinutes: cursor + duration,
+          ),
+        );
+        cursor += duration;
+        extraTime -= taskExtra;
       }
     }
 
-    return bestIndex;
+    return schedule;
+  }
+
+  int _compareCandidates(_TaskCandidate first, _TaskCandidate second) {
+    final taskComparison = _compareTasks(first.task, second.task);
+    if (taskComparison != 0) return taskComparison;
+    return first.originalIndex.compareTo(second.originalIndex);
   }
 
   int _compareTasks(DittoTask first, DittoTask second) {
@@ -98,4 +232,96 @@ class ScheduleService {
     TaskImportance.canWait => 1,
     TaskImportance.optional => 2,
   };
+
+  int _dateOnlyValue(DateTime date) =>
+      DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
+
+  int _minimum(int first, int second) => first < second ? first : second;
+
+  int _maximum(int first, int second) => first > second ? first : second;
+}
+
+class _TaskCandidate {
+  const _TaskCandidate({
+    required this.task,
+    required this.originalIndex,
+    required this.deadlineScore,
+  });
+
+  final DittoTask task;
+  final int originalIndex;
+  final BigInt deadlineScore;
+}
+
+class _SelectionScore {
+  _SelectionScore({
+    required this.mustCompleteCount,
+    required this.canWaitCount,
+    required this.deadlineScore,
+    required this.taskCount,
+  });
+
+  _SelectionScore.empty()
+    : mustCompleteCount = 0,
+      canWaitCount = 0,
+      deadlineScore = BigInt.zero,
+      taskCount = 0;
+
+  final int mustCompleteCount;
+  final int canWaitCount;
+  final BigInt deadlineScore;
+  final int taskCount;
+
+  _SelectionScore withTask(_TaskCandidate candidate) {
+    return _SelectionScore(
+      mustCompleteCount:
+          mustCompleteCount +
+          (candidate.task.importance == TaskImportance.mustComplete ? 1 : 0),
+      canWaitCount:
+          canWaitCount +
+          (candidate.task.importance == TaskImportance.canWait ? 1 : 0),
+      deadlineScore: deadlineScore + candidate.deadlineScore,
+      taskCount: taskCount + 1,
+    );
+  }
+
+  bool isBetterThan(_SelectionScore other) {
+    if (mustCompleteCount != other.mustCompleteCount) {
+      return mustCompleteCount > other.mustCompleteCount;
+    }
+    if (canWaitCount != other.canWaitCount) {
+      return canWaitCount > other.canWaitCount;
+    }
+    final deadlineComparison = deadlineScore.compareTo(other.deadlineScore);
+    if (deadlineComparison != 0) return deadlineComparison > 0;
+    return taskCount > other.taskCount;
+  }
+}
+
+class _SelectionResult {
+  _SelectionResult({required this.score, required this.taskIndexes});
+
+  _SelectionResult.empty()
+    : score = _SelectionScore.empty(),
+      taskIndexes = const [];
+
+  final _SelectionScore score;
+  final List<int> taskIndexes;
+
+  _SelectionResult withTask(int taskIndex, _TaskCandidate candidate) {
+    return _SelectionResult(
+      score: score.withTask(candidate),
+      taskIndexes: [taskIndex, ...taskIndexes],
+    );
+  }
+}
+
+class _AssignmentResult {
+  const _AssignmentResult({
+    required this.extraMinutes,
+    required this.windowIndexes,
+  });
+
+  final int extraMinutes;
+  final List<int> windowIndexes;
 }
