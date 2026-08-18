@@ -32,6 +32,8 @@ losing information.
 
 ## Phase 3: Build the storage service
 
+**Status:** Complete
+
 Create `lib/services/local_storage_service.dart` with these responsibilities:
 
 - Save and load tasks
@@ -45,6 +47,8 @@ Create `lib/services/local_storage_service.dart` with these responsibilities:
 Store JSON strings using `shared_preferences`.
 
 ## Phase 4: Test the service
+
+**Status:** Complete
 
 Test:
 
