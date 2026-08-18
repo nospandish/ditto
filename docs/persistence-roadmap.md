@@ -15,6 +15,8 @@ do not need to be stored because Ditto can regenerate them from the saved data.
 
 ## Phase 2: Make models serializable
 
+**Status:** Complete
+
 Add JSON conversion to `DittoTask` and `AvailableTimeBlock`.
 
 Store:
