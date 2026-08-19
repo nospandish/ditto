@@ -65,6 +65,8 @@ Use mocked shared preferences so the tests do not depend on a physical device.
 
 ## Phase 5: Merge current work
 
+**Status:** Complete
+
 After impossible-schedule handling reaches `main`:
 
 - Pull the updated `main` branch.
@@ -73,6 +75,8 @@ After impossible-schedule handling reaches `main`:
 - Run the complete test suite.
 
 ## Phase 6: Integrate persistence
+
+**Status:** Complete
 
 Connect the storage service to `AppShell`:
 

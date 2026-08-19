@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/available_time_block.dart';
@@ -8,10 +10,13 @@ import '../screens/add_task_screen.dart';
 import '../screens/available_time_screen.dart';
 import '../screens/tasks_screen.dart';
 import '../screens/today_screen.dart';
+import '../services/local_storage_service.dart';
 import '../services/schedule_service.dart';
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({this.storageService, super.key});
+
+  final LocalStorageService? storageService;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -23,6 +28,67 @@ class _AppShellState extends State<AppShell> {
   final List<AvailableTimeBlock> _availableTimeBlocks = [];
   final ScheduleService _scheduleService = const ScheduleService();
   ScheduleBuildResult? _scheduleResult;
+  LocalStorageService? _storageService;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadSavedData());
+  }
+
+  Future<void> _loadSavedData() async {
+    try {
+      final storage =
+          widget.storageService ?? await LocalStorageService.create();
+      final tasks = storage.loadTasks();
+      final availableTime = storage.loadAvailableTime()
+        ..sort(
+          (first, second) => first.startMinutes.compareTo(second.startMinutes),
+        );
+      if (!mounted) return;
+      setState(() {
+        _storageService = storage;
+        _tasks.addAll(tasks);
+        _availableTimeBlocks.addAll(availableTime);
+        _isLoading = false;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showStorageError(
+            'Ditto could not load saved data. You can still use the app.',
+          );
+        }
+      });
+    }
+  }
+
+  Future<void> _saveTasks() async {
+    try {
+      await _storageService?.saveTasks(_tasks);
+    } on Object {
+      if (mounted) _showStorageError();
+    }
+  }
+
+  Future<void> _saveAvailableTime() async {
+    try {
+      await _storageService?.saveAvailableTime(_availableTimeBlocks);
+    } on Object {
+      if (mounted) _showStorageError();
+    }
+  }
+
+  void _showStorageError([
+    String message = 'Ditto could not save your changes. Please try again.',
+  ]) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   void _generatePlan() {
     setState(() {
@@ -53,6 +119,7 @@ class _AppShellState extends State<AppShell> {
       if (taskIndex != -1) _tasks[taskIndex] = editedTask;
       _scheduleResult = null;
     });
+    await _saveTasks();
   }
 
   void _deleteTask(DittoTask task) {
@@ -60,6 +127,7 @@ class _AppShellState extends State<AppShell> {
       _tasks.remove(task);
       _scheduleResult = null;
     });
+    unawaited(_saveTasks());
   }
 
   Future<void> _openAvailableTimeEditor([
@@ -91,6 +159,7 @@ class _AppShellState extends State<AppShell> {
       );
       _scheduleResult = null;
     });
+    await _saveAvailableTime();
   }
 
   void _deleteAvailableTimeBlock(AvailableTimeBlock block) {
@@ -98,10 +167,19 @@ class _AppShellState extends State<AppShell> {
       _availableTimeBlocks.remove(block);
       _scheduleResult = null;
     });
+    unawaited(_saveAvailableTime());
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(key: Key('storage-loading')),
+        ),
+      );
+    }
+
     final screens = <Widget>[
       TodayScreen(
         hasTasks: _tasks.isNotEmpty,

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../services/local_storage_service.dart';
 import '../theme/app_theme.dart';
 import 'app_shell.dart';
 
 class DittoApp extends StatelessWidget {
-  const DittoApp({super.key});
+  const DittoApp({this.storageService, super.key});
+
+  final LocalStorageService? storageService;
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +15,7 @@ class DittoApp extends StatelessWidget {
       title: 'Ditto',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const AppShell(),
+      home: AppShell(storageService: storageService),
     );
   }
 }

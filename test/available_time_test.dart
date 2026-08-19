@@ -1,10 +1,16 @@
 import 'package:ditto/app/app.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   Future<void> openAvailableTimeEditor(WidgetTester tester) async {
     await tester.pumpWidget(const DittoApp());
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Add available time'));

@@ -1,11 +1,17 @@
 import 'package:ditto/app/app.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('shows the initial Today screen and primary navigation', (
     tester,
   ) async {
     await tester.pumpWidget(const DittoApp());
+    await tester.pumpAndSettle();
 
     expect(find.text('Today'), findsNWidgets(2));
     expect(find.text('Make today manageable.'), findsOneWidget);
@@ -16,6 +22,7 @@ void main() {
 
   testWidgets('switches between primary screens', (tester) async {
     await tester.pumpWidget(const DittoApp());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Tasks'));
     await tester.pumpAndSettle();
