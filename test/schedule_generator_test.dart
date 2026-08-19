@@ -31,7 +31,8 @@ void main() {
         availableTime: generated.availableTime,
       );
 
-      _expectValidFullPlan(result, generated, seed);
+      expect(result.isSuccessful, isTrue, reason: 'Generated scenario $seed');
+      _expectValidFullPlan(result.scheduledTasks, generated, seed);
     }
   });
 }
