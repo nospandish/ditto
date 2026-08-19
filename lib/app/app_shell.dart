@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/available_time_block.dart';
 import '../models/ditto_task.dart';
-import '../models/scheduled_task.dart';
+import '../models/schedule_build_result.dart';
 import '../screens/add_available_time_screen.dart';
 import '../screens/add_task_screen.dart';
 import '../screens/available_time_screen.dart';
@@ -22,11 +22,11 @@ class _AppShellState extends State<AppShell> {
   final List<DittoTask> _tasks = [];
   final List<AvailableTimeBlock> _availableTimeBlocks = [];
   final ScheduleService _scheduleService = const ScheduleService();
-  List<ScheduledTask> _schedule = [];
+  ScheduleBuildResult? _scheduleResult;
 
   void _generatePlan() {
     setState(() {
-      _schedule = _scheduleService.buildSchedule(
+      _scheduleResult = _scheduleService.buildSchedule(
         tasks: _tasks,
         availableTime: _availableTimeBlocks,
       );
@@ -45,20 +45,20 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       if (existingTask == null) {
         _tasks.add(editedTask);
-        _schedule = [];
+        _scheduleResult = null;
         return;
       }
 
       final taskIndex = _tasks.indexOf(existingTask);
       if (taskIndex != -1) _tasks[taskIndex] = editedTask;
-      _schedule = [];
+      _scheduleResult = null;
     });
   }
 
   void _deleteTask(DittoTask task) {
     setState(() {
       _tasks.remove(task);
-      _schedule = [];
+      _scheduleResult = null;
     });
   }
 
@@ -89,14 +89,14 @@ class _AppShellState extends State<AppShell> {
       _availableTimeBlocks.sort(
         (first, second) => first.startMinutes.compareTo(second.startMinutes),
       );
-      _schedule = [];
+      _scheduleResult = null;
     });
   }
 
   void _deleteAvailableTimeBlock(AvailableTimeBlock block) {
     setState(() {
       _availableTimeBlocks.remove(block);
-      _schedule = [];
+      _scheduleResult = null;
     });
   }
 
@@ -106,9 +106,10 @@ class _AppShellState extends State<AppShell> {
       TodayScreen(
         hasTasks: _tasks.isNotEmpty,
         hasAvailableTime: _availableTimeBlocks.isNotEmpty,
-        schedule: _schedule,
+        scheduleResult: _scheduleResult,
         onAddTask: _openTaskEditor,
         onAddAvailableTime: _openAvailableTimeEditor,
+        onReviewTasks: () => setState(() => _selectedIndex = 1),
         onGeneratePlan: _generatePlan,
       ),
       TasksScreen(

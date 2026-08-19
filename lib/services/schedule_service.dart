@@ -1,15 +1,31 @@
 import '../models/available_time_block.dart';
 import '../models/ditto_task.dart';
+import '../models/schedule_build_result.dart';
 import '../models/scheduled_task.dart';
 
 class ScheduleService {
   const ScheduleService();
 
-  List<ScheduledTask> buildSchedule({
+  ScheduleBuildResult buildSchedule({
     required List<DittoTask> tasks,
     required List<AvailableTimeBlock> availableTime,
   }) {
-    if (tasks.isEmpty || availableTime.isEmpty) return [];
+    final totalAvailableMinutes = availableTime.fold(
+      0,
+      (total, window) => total + window.durationMinutes,
+    );
+    final mustCompleteMinimumMinutes = tasks
+        .where((task) => task.importance == TaskImportance.mustComplete)
+        .fold(0, (total, task) => total + task.minimumMinutes);
+
+    if (tasks.isEmpty || availableTime.isEmpty) {
+      return _buildResult(
+        tasks: tasks,
+        schedule: const [],
+        totalAvailableMinutes: totalAvailableMinutes,
+        mustCompleteMinimumMinutes: mustCompleteMinimumMinutes,
+      );
+    }
 
     final windows = [...availableTime]
       ..sort(
@@ -22,8 +38,49 @@ class ScheduleService {
     ];
     final assignment = _assignTasks(selectedTasks, windows);
 
-    if (assignment == null) return [];
-    return _buildTimedSchedule(selectedTasks, assignment, windows);
+    final schedule = assignment == null
+        ? const <ScheduledTask>[]
+        : _buildTimedSchedule(selectedTasks, assignment, windows);
+    return _buildResult(
+      tasks: tasks,
+      schedule: schedule,
+      totalAvailableMinutes: totalAvailableMinutes,
+      mustCompleteMinimumMinutes: mustCompleteMinimumMinutes,
+    );
+  }
+
+  ScheduleBuildResult _buildResult({
+    required List<DittoTask> tasks,
+    required List<ScheduledTask> schedule,
+    required int totalAvailableMinutes,
+    required int mustCompleteMinimumMinutes,
+  }) {
+    final scheduledTasks = {for (final item in schedule) item.task};
+    final unscheduledTasks = tasks
+        .where((task) => !scheduledTasks.contains(task))
+        .toList(growable: false);
+    final unscheduledMustComplete = unscheduledTasks.where(
+      (task) => task.importance == TaskImportance.mustComplete,
+    );
+    final issueReason = switch ((
+      totalAvailableMinutes,
+      mustCompleteMinimumMinutes > totalAvailableMinutes,
+    )) {
+      (0, _) => ScheduleIssueReason.noAvailableTime,
+      (_, true) => ScheduleIssueReason.insufficientTotalTime,
+      _ => ScheduleIssueReason.noContinuousWindow,
+    };
+
+    return ScheduleBuildResult(
+      scheduledTasks: schedule,
+      unscheduledTasks: unscheduledTasks,
+      issues: [
+        for (final task in unscheduledMustComplete)
+          ScheduleIssue(task: task, reason: issueReason),
+      ],
+      totalAvailableMinutes: totalAvailableMinutes,
+      mustCompleteMinimumMinutes: mustCompleteMinimumMinutes,
+    );
   }
 
   List<_TaskCandidate> _buildCandidates(List<DittoTask> tasks) {
