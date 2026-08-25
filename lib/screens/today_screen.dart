@@ -251,7 +251,7 @@ class _ImpossibleScheduleCard extends StatelessWidget {
               spacing: 10,
               runSpacing: 8,
               children: [
-                OutlinedButton.icon(
+                FilledButton.icon(
                   key: const Key('review-conflicting-tasks-button'),
                   onPressed: onReviewTasks,
                   icon: const Icon(Icons.edit_note_rounded),
