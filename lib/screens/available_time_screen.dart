@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/available_time_block.dart';
+import '../widgets/available_time_clock.dart';
 import '../widgets/screen_empty_state.dart';
 
 class AvailableTimeScreen extends StatelessWidget {
@@ -16,9 +17,6 @@ class AvailableTimeScreen extends StatelessWidget {
   final VoidCallback onAddBlock;
   final ValueChanged<AvailableTimeBlock> onEditBlock;
   final ValueChanged<AvailableTimeBlock> onDeleteBlock;
-
-  int get _totalMinutes =>
-      blocks.fold(0, (total, block) => total + block.durationMinutes);
 
   Future<void> _confirmDelete(
     BuildContext context,
@@ -75,7 +73,7 @@ class AvailableTimeScreen extends StatelessWidget {
             : ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
-                  _AvailabilitySummary(totalMinutes: _totalMinutes),
+                  AvailableTimeClock(blocks: blocks),
                   const SizedBox(height: 16),
                   Text(
                     'Today’s windows',
@@ -93,54 +91,6 @@ class AvailableTimeScreen extends StatelessWidget {
                   ],
                 ],
               ),
-      ),
-    );
-  }
-}
-
-class _AvailabilitySummary extends StatelessWidget {
-  const _AvailabilitySummary({required this.totalMinutes});
-
-  final int totalMinutes;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.schedule_rounded,
-            size: 30,
-            color: colorScheme.onPrimaryContainer,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _formatAvailableDuration(totalMinutes),
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: colorScheme.onPrimaryContainer,
-                  ),
-                ),
-                Text(
-                  'available today',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onPrimaryContainer,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -219,8 +169,6 @@ class _AvailableTimeCard extends StatelessWidget {
     );
   }
 }
-
-String _formatAvailableDuration(int minutes) => _formatDuration(minutes);
 
 String _formatDuration(int minutes) {
   final hours = minutes ~/ 60;
