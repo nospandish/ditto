@@ -12,7 +12,7 @@ abstract final class AppTheme {
     return ThemeData(
       colorScheme: colorScheme,
       useMaterial3: true,
-      scaffoldBackgroundColor: const Color(0xFFF7F8F5),
+      scaffoldBackgroundColor: Colors.transparent,
       appBarTheme: const AppBarTheme(
         centerTitle: false,
         backgroundColor: Colors.transparent,

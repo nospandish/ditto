@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/local_storage_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/paper_background.dart';
 import 'app_shell.dart';
 
 class DittoApp extends StatelessWidget {
@@ -15,6 +16,8 @@ class DittoApp extends StatelessWidget {
       title: 'Ditto',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      builder: (context, child) =>
+          PaperBackground(child: child ?? const SizedBox.shrink()),
       home: AppShell(storageService: storageService),
     );
   }
