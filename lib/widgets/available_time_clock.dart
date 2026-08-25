@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/available_time_block.dart';
 
-const double _startOfDayAngle = -math.pi / 2;
+const double _startOfDayAngle = math.pi / 2;
 
 @visibleForTesting
 double availableTimeAngleForMinutes(int minutes) {
@@ -45,13 +45,13 @@ class AvailableTimeClock extends StatelessWidget {
           child: Column(
             children: [
               SizedBox.square(
-                dimension: 252,
+                dimension: 288,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
                     RepaintBoundary(
                       child: CustomPaint(
-                        size: const Size.square(252),
+                        size: const Size.square(288),
                         painter: _AvailableTimeClockPainter(
                           blocks: sortedBlocks,
                           availableColor: Theme.of(context).colorScheme.primary,
@@ -64,21 +64,37 @@ class AvailableTimeClock extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const _ClockLabel(
+                    const _ClockMarker(
+                      key: Key('midnight-marker'),
                       label: '12 AM',
-                      alignment: Alignment.topCenter,
-                    ),
-                    const _ClockLabel(
-                      label: '6 AM',
-                      alignment: Alignment.centerRight,
-                    ),
-                    const _ClockLabel(
-                      label: '12 PM',
+                      icon: Icons.dark_mode_rounded,
+                      iconColor: Color(0xFF53657A),
                       alignment: Alignment.bottomCenter,
+                      axis: Axis.horizontal,
                     ),
-                    const _ClockLabel(
-                      label: '6 PM',
+                    const _ClockMarker(
+                      key: Key('sunrise-marker'),
+                      label: '6 AM',
+                      icon: Icons.wb_twilight_rounded,
+                      iconColor: Color(0xFFD99A25),
                       alignment: Alignment.centerLeft,
+                      axis: Axis.vertical,
+                    ),
+                    const _ClockMarker(
+                      key: Key('noon-marker'),
+                      label: '12 PM',
+                      icon: Icons.light_mode_rounded,
+                      iconColor: Color(0xFFE1A11D),
+                      alignment: Alignment.topCenter,
+                      axis: Axis.horizontal,
+                    ),
+                    const _ClockMarker(
+                      key: Key('sunset-marker'),
+                      label: '6 PM',
+                      icon: Icons.wb_twilight_rounded,
+                      iconColor: Color(0xFFC96F45),
+                      alignment: Alignment.centerRight,
+                      axis: Axis.vertical,
                     ),
                     _ClockCenter(totalMinutes: _totalMinutes),
                   ],
@@ -110,7 +126,7 @@ class _AvailableTimeClockPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
-    final radius = math.min(size.width, size.height) / 2 - 38;
+    final radius = math.min(size.width, size.height) / 2 - 64;
     const strokeWidth = 20.0;
     final ringBounds = Rect.fromCircle(center: center, radius: radius);
 
@@ -177,23 +193,53 @@ class _AvailableTimeClockPainter extends CustomPainter {
   }
 }
 
-class _ClockLabel extends StatelessWidget {
-  const _ClockLabel({required this.label, required this.alignment});
+class _ClockMarker extends StatelessWidget {
+  const _ClockMarker({
+    required this.label,
+    required this.icon,
+    required this.iconColor,
+    required this.alignment,
+    required this.axis,
+    super.key,
+  });
 
   final String label;
+  final IconData icon;
+  final Color iconColor;
   final Alignment alignment;
+  final Axis axis;
 
   @override
   Widget build(BuildContext context) {
+    final markerChildren = <Widget>[
+      Icon(icon, color: iconColor, size: 48),
+      SizedBox(width: axis == Axis.horizontal ? 4 : 0, height: 2),
+      Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.onPrimaryContainer,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ];
+
     return Align(
       alignment: alignment,
       child: Padding(
-        padding: const EdgeInsets.all(3),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
-            fontWeight: FontWeight.w700,
+        padding: const EdgeInsets.all(2),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+            child: axis == Axis.horizontal
+                ? Row(mainAxisSize: MainAxisSize.min, children: markerChildren)
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: markerChildren,
+                  ),
           ),
         ),
       ),
@@ -299,7 +345,9 @@ String _buildSemanticsLabel({
   required int totalMinutes,
 }) {
   final buffer = StringBuffer(
-    'Available time clock. ${_formatDuration(totalMinutes)} available today.',
+    'Available time clock. Noon and sun are at the top, sunset is at 6 PM '
+    'on the right, midnight and moon are at the bottom, and sunrise is at '
+    '6 AM on the left. ${_formatDuration(totalMinutes)} available today.',
   );
   for (final block in blocks) {
     final start = localizations.formatTimeOfDay(
