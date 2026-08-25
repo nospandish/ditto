@@ -34,6 +34,11 @@ class TodayScreen extends StatelessWidget {
             TextButton.icon(
               key: const Key('generate-plan-button'),
               onPressed: onGeneratePlan,
+              style: TextButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+                foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+              ),
               icon: const Icon(Icons.auto_awesome_rounded),
               label: Text(scheduleResult == null ? 'Generate' : 'Regenerate'),
             ),
