@@ -11,6 +11,7 @@ abstract final class AppTheme {
 
     return ThemeData(
       colorScheme: colorScheme,
+      fontFamily: 'Nunito',
       useMaterial3: true,
       scaffoldBackgroundColor: Colors.transparent,
       appBarTheme: const AppBarTheme(
