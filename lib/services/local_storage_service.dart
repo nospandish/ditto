@@ -10,6 +10,7 @@ class LocalStorageService {
 
   static const _tasksKey = 'ditto.tasks.v1';
   static const _availableTimeKey = 'ditto.available_time.v1';
+  static const _hasGeneratedPlanKey = 'ditto.has_generated_plan.v1';
 
   final SharedPreferences _preferences;
 
@@ -38,10 +39,20 @@ class LocalStorageService {
     return _loadList(_availableTimeKey, AvailableTimeBlock.fromJson);
   }
 
+  Future<void> saveHasGeneratedPlan(bool value) async {
+    final saved = await _preferences.setBool(_hasGeneratedPlanKey, value);
+    if (!saved) throw StateError('Could not save generated-plan state.');
+  }
+
+  bool loadHasGeneratedPlan() {
+    return _preferences.getBool(_hasGeneratedPlanKey) ?? false;
+  }
+
   Future<void> clearAllData() async {
     final results = await Future.wait([
       _preferences.remove(_tasksKey),
       _preferences.remove(_availableTimeKey),
+      _preferences.remove(_hasGeneratedPlanKey),
     ]);
     if (results.any((removed) => !removed)) {
       throw StateError('Could not clear saved data.');

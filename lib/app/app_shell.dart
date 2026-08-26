@@ -46,11 +46,18 @@ class _AppShellState extends State<AppShell> {
         ..sort(
           (first, second) => first.startMinutes.compareTo(second.startMinutes),
         );
+      final restoredSchedule = storage.loadHasGeneratedPlan()
+          ? _scheduleService.buildSchedule(
+              tasks: tasks,
+              availableTime: availableTime,
+            )
+          : null;
       if (!mounted) return;
       setState(() {
         _storageService = storage;
         _tasks.addAll(tasks);
         _availableTimeBlocks.addAll(availableTime);
+        _scheduleResult = restoredSchedule;
         _isLoading = false;
       });
     } on Object {
@@ -82,6 +89,14 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Future<void> _saveHasGeneratedPlan(bool value) async {
+    try {
+      await _storageService?.saveHasGeneratedPlan(value);
+    } on Object {
+      if (mounted) _showStorageError();
+    }
+  }
+
   void _showStorageError([
     String message = 'Ditto could not save your changes. Please try again.',
   ]) {
@@ -97,6 +112,7 @@ class _AppShellState extends State<AppShell> {
         availableTime: _availableTimeBlocks,
       );
     });
+    unawaited(_saveHasGeneratedPlan(true));
   }
 
   Future<void> _openTaskEditor([DittoTask? existingTask]) async {
@@ -119,7 +135,7 @@ class _AppShellState extends State<AppShell> {
       if (taskIndex != -1) _tasks[taskIndex] = editedTask;
       _scheduleResult = null;
     });
-    await _saveTasks();
+    await Future.wait([_saveTasks(), _saveHasGeneratedPlan(false)]);
   }
 
   void _deleteTask(DittoTask task) {
@@ -128,6 +144,7 @@ class _AppShellState extends State<AppShell> {
       _scheduleResult = null;
     });
     unawaited(_saveTasks());
+    unawaited(_saveHasGeneratedPlan(false));
   }
 
   Future<void> _openAvailableTimeEditor([
@@ -159,7 +176,7 @@ class _AppShellState extends State<AppShell> {
       );
       _scheduleResult = null;
     });
-    await _saveAvailableTime();
+    await Future.wait([_saveAvailableTime(), _saveHasGeneratedPlan(false)]);
   }
 
   void _deleteAvailableTimeBlock(AvailableTimeBlock block) {
@@ -168,6 +185,7 @@ class _AppShellState extends State<AppShell> {
       _scheduleResult = null;
     });
     unawaited(_saveAvailableTime());
+    unawaited(_saveHasGeneratedPlan(false));
   }
 
   @override

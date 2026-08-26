@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   const tasksKey = 'ditto.tasks.v1';
   const availableTimeKey = 'ditto.available_time.v1';
+  const hasGeneratedPlanKey = 'ditto.has_generated_plan.v1';
 
   Future<(LocalStorageService, SharedPreferences)> createStorage([
     Map<String, Object> initialValues = const {},
@@ -23,6 +24,7 @@ void main() {
 
     expect(storage.loadTasks(), isEmpty);
     expect(storage.loadAvailableTime(), isEmpty);
+    expect(storage.loadHasGeneratedPlan(), isFalse);
   });
 
   test(
@@ -106,6 +108,16 @@ void main() {
     expect(loaded.single.name, 'Replacement task');
   });
 
+  test('saves and loads whether a plan has been generated', () async {
+    final (storage, _) = await createStorage();
+
+    await storage.saveHasGeneratedPlan(true);
+    expect(storage.loadHasGeneratedPlan(), isTrue);
+
+    await storage.saveHasGeneratedPlan(false);
+    expect(storage.loadHasGeneratedPlan(), isFalse);
+  });
+
   test('malformed top-level data returns an empty list', () async {
     final (storage, _) = await createStorage({tasksKey: 'not valid JSON'});
 
@@ -136,6 +148,7 @@ void main() {
       final (storage, preferences) = await createStorage({
         tasksKey: '[]',
         availableTimeKey: '[]',
+        hasGeneratedPlanKey: true,
         'another_feature.setting': true,
       });
 
@@ -143,6 +156,7 @@ void main() {
 
       expect(preferences.containsKey(tasksKey), isFalse);
       expect(preferences.containsKey(availableTimeKey), isFalse);
+      expect(preferences.containsKey(hasGeneratedPlanKey), isFalse);
       expect(preferences.getBool('another_feature.setting'), isTrue);
       expect(storage.loadTasks(), isEmpty);
       expect(storage.loadAvailableTime(), isEmpty);

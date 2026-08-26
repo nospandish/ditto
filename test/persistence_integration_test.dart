@@ -61,4 +61,53 @@ void main() {
     expect(stored, isNotNull);
     expect(stored, contains('Persist this task'));
   });
+
+  testWidgets('restores a previously generated schedule during startup', (
+    tester,
+  ) async {
+    const task = DittoTask(
+      name: 'Restored schedule task',
+      minimumMinutes: 45,
+      maximumMinutes: 60,
+      importance: TaskImportance.mustComplete,
+    );
+    const block = AvailableTimeBlock(startMinutes: 9 * 60, endMinutes: 11 * 60);
+    SharedPreferences.setMockInitialValues({
+      'ditto.tasks.v1': jsonEncode([task.toJson()]),
+      'ditto.available_time.v1': jsonEncode([block.toJson()]),
+      'ditto.has_generated_plan.v1': true,
+    });
+
+    await tester.pumpWidget(const DittoApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Restored schedule task'), findsOneWidget);
+    expect(find.textContaining('9:00 AM - 10:00 AM'), findsOneWidget);
+    expect(find.text('Regenerate'), findsOneWidget);
+  });
+
+  testWidgets('records when the user generates a plan', (tester) async {
+    const task = DittoTask(
+      name: 'Generate saved plan',
+      minimumMinutes: 30,
+      maximumMinutes: 30,
+      importance: TaskImportance.canWait,
+    );
+    const block = AvailableTimeBlock(
+      startMinutes: 13 * 60,
+      endMinutes: 14 * 60,
+    );
+    SharedPreferences.setMockInitialValues({
+      'ditto.tasks.v1': jsonEncode([task.toJson()]),
+      'ditto.available_time.v1': jsonEncode([block.toJson()]),
+    });
+
+    await tester.pumpWidget(const DittoApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Generate'));
+    await tester.pumpAndSettle();
+
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getBool('ditto.has_generated_plan.v1'), isTrue);
+  });
 }
