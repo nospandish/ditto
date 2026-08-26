@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:ditto/models/available_time_block.dart';
+import 'package:ditto/models/ditto_task.dart';
+import 'package:ditto/models/scheduled_task.dart';
 import 'package:ditto/widgets/available_time_clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,6 +32,28 @@ void main() {
                 endMinutes: 15 * 60,
               ),
             ],
+            scheduledTasks: [
+              ScheduledTask(
+                task: DittoTask(
+                  name: 'Write essay',
+                  minimumMinutes: 90,
+                  maximumMinutes: 90,
+                  importance: TaskImportance.mustComplete,
+                ),
+                startMinutes: 9 * 60,
+                endMinutes: 10 * 60 + 30,
+              ),
+              ScheduledTask(
+                task: DittoTask(
+                  name: 'Review notes',
+                  minimumMinutes: 30,
+                  maximumMinutes: 30,
+                  importance: TaskImportance.canWait,
+                ),
+                startMinutes: 13 * 60 + 30,
+                endMinutes: 14 * 60,
+              ),
+            ],
           ),
         ),
       ),
@@ -50,13 +74,26 @@ void main() {
     expect(find.byIcon(Icons.wb_twilight_rounded), findsNWidgets(2));
     expect(find.text('Available'), findsOneWidget);
     expect(find.text('Unavailable'), findsOneWidget);
+    expect(find.text('Scheduled tasks'), findsOneWidget);
+    expect(find.text('Write essay · 9:00 AM–10:30 AM'), findsOneWidget);
+    expect(find.text('Review notes · 1:30 PM–2:00 PM'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('scheduled-task-legend-0')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('scheduled-task-legend-1')),
+      findsOneWidget,
+    );
     expect(
       find.bySemanticsLabel(
         'Available time clock. Noon and sun are at the top, sunset is at '
         '6 PM on the right, midnight and moon are at the bottom, and sunrise '
         'is at 6 AM on the left. 4h 30m available today. '
         'Available from 9:00 AM to 12:00 PM. '
-        'Available from 1:30 PM to 3:00 PM.',
+        'Available from 1:30 PM to 3:00 PM. '
+        'Scheduled task Write essay from 9:00 AM to 10:30 AM. '
+        'Scheduled task Review notes from 1:30 PM to 2:00 PM.',
       ),
       findsOneWidget,
     );

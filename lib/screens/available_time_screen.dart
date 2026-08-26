@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../models/available_time_block.dart';
+import '../models/scheduled_task.dart';
 import '../widgets/available_time_clock.dart';
 import '../widgets/screen_empty_state.dart';
 
 class AvailableTimeScreen extends StatelessWidget {
   const AvailableTimeScreen({
     required this.blocks,
+    required this.scheduledTasks,
     required this.onAddBlock,
     required this.onEditBlock,
     required this.onDeleteBlock,
@@ -14,6 +16,7 @@ class AvailableTimeScreen extends StatelessWidget {
   });
 
   final List<AvailableTimeBlock> blocks;
+  final List<ScheduledTask> scheduledTasks;
   final VoidCallback onAddBlock;
   final ValueChanged<AvailableTimeBlock> onEditBlock;
   final ValueChanged<AvailableTimeBlock> onDeleteBlock;
@@ -77,7 +80,10 @@ class AvailableTimeScreen extends StatelessWidget {
             : ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
-                  AvailableTimeClock(blocks: blocks),
+                  AvailableTimeClock(
+                    blocks: blocks,
+                    scheduledTasks: scheduledTasks,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'Today’s windows',

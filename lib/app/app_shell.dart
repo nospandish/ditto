@@ -198,6 +198,7 @@ class _AppShellState extends State<AppShell> {
       ),
       AvailableTimeScreen(
         blocks: _availableTimeBlocks,
+        scheduledTasks: _scheduleResult?.scheduledTasks ?? const [],
         onAddBlock: _openAvailableTimeEditor,
         onEditBlock: _openAvailableTimeEditor,
         onDeleteBlock: _deleteAvailableTimeBlock,

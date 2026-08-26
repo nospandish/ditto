@@ -3,8 +3,16 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/available_time_block.dart';
+import '../models/scheduled_task.dart';
 
 const double _startOfDayAngle = math.pi / 2;
+const List<Color> _scheduledTaskColors = [
+  Color(0xFFFFD166),
+  Color(0xFF70D6FF),
+  Color(0xFFFFB3C7),
+  Color(0xFFCDB4DB),
+  Color(0xFFFFB59A),
+];
 
 @visibleForTesting
 double availableTimeAngleForMinutes(int minutes) {
@@ -12,9 +20,14 @@ double availableTimeAngleForMinutes(int minutes) {
 }
 
 class AvailableTimeClock extends StatelessWidget {
-  const AvailableTimeClock({required this.blocks, super.key});
+  const AvailableTimeClock({
+    required this.blocks,
+    this.scheduledTasks = const [],
+    super.key,
+  });
 
   final List<AvailableTimeBlock> blocks;
+  final List<ScheduledTask> scheduledTasks;
 
   int get _totalMinutes =>
       blocks.fold(0, (total, block) => total + block.durationMinutes);
@@ -24,8 +37,11 @@ class AvailableTimeClock extends StatelessWidget {
     final localizations = MaterialLocalizations.of(context);
     final sortedBlocks = [...blocks]
       ..sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
+    final sortedScheduledTasks = [...scheduledTasks]
+      ..sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
     final semanticsLabel = _buildSemanticsLabel(
       blocks: sortedBlocks,
+      scheduledTasks: sortedScheduledTasks,
       localizations: localizations,
       totalMinutes: _totalMinutes,
     );
@@ -54,7 +70,11 @@ class AvailableTimeClock extends StatelessWidget {
                         size: const Size.square(288),
                         painter: _AvailableTimeClockPainter(
                           blocks: sortedBlocks,
+                          scheduledTasks: sortedScheduledTasks,
                           availableColor: Theme.of(context).colorScheme.primary,
+                          scheduledSeparatorColor: Theme.of(
+                            context,
+                          ).colorScheme.surface,
                           unavailableColor: Theme.of(
                             context,
                           ).colorScheme.surface.withValues(alpha: 0.72),
@@ -101,7 +121,10 @@ class AvailableTimeClock extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              const _ClockLegend(),
+              _ClockLegend(
+                scheduledTasks: sortedScheduledTasks,
+                localizations: localizations,
+              ),
             ],
           ),
         ),
@@ -113,13 +136,18 @@ class AvailableTimeClock extends StatelessWidget {
 class _AvailableTimeClockPainter extends CustomPainter {
   _AvailableTimeClockPainter({
     required List<AvailableTimeBlock> blocks,
+    required List<ScheduledTask> scheduledTasks,
     required this.availableColor,
+    required this.scheduledSeparatorColor,
     required this.unavailableColor,
     required this.tickColor,
-  }) : blocks = List.unmodifiable(blocks);
+  }) : blocks = List.unmodifiable(blocks),
+       scheduledTasks = List.unmodifiable(scheduledTasks);
 
   final List<AvailableTimeBlock> blocks;
+  final List<ScheduledTask> scheduledTasks;
   final Color availableColor;
+  final Color scheduledSeparatorColor;
   final Color unavailableColor;
   final Color tickColor;
 
@@ -152,6 +180,25 @@ class _AvailableTimeClockPainter extends CustomPainter {
       canvas.drawArc(ringBounds, startAngle, sweepAngle, false, availablePaint);
     }
 
+    for (var index = 0; index < scheduledTasks.length; index++) {
+      final item = scheduledTasks[index];
+      final separatorPaint = Paint()
+        ..color = scheduledSeparatorColor
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.butt
+        ..strokeWidth = 12;
+      final scheduledPaint = Paint()
+        ..color = _scheduledTaskColors[index % _scheduledTaskColors.length]
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.butt
+        ..strokeWidth = 7;
+      final startAngle = availableTimeAngleForMinutes(item.startMinutes);
+      final sweepAngle =
+          (item.durationMinutes / Duration.minutesPerDay) * 2 * math.pi;
+      canvas.drawArc(ringBounds, startAngle, sweepAngle, false, separatorPaint);
+      canvas.drawArc(ringBounds, startAngle, sweepAngle, false, scheduledPaint);
+    }
+
     final tickPaint = Paint()
       ..color = tickColor.withValues(alpha: 0.38)
       ..strokeCap = StrokeCap.round;
@@ -175,9 +222,11 @@ class _AvailableTimeClockPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _AvailableTimeClockPainter oldDelegate) {
     if (availableColor != oldDelegate.availableColor ||
+        scheduledSeparatorColor != oldDelegate.scheduledSeparatorColor ||
         unavailableColor != oldDelegate.unavailableColor ||
         tickColor != oldDelegate.tickColor ||
-        blocks.length != oldDelegate.blocks.length) {
+        blocks.length != oldDelegate.blocks.length ||
+        scheduledTasks.length != oldDelegate.scheduledTasks.length) {
       return true;
     }
 
@@ -186,6 +235,14 @@ class _AvailableTimeClockPainter extends CustomPainter {
       final oldBlock = oldDelegate.blocks[index];
       if (block.startMinutes != oldBlock.startMinutes ||
           block.endMinutes != oldBlock.endMinutes) {
+        return true;
+      }
+    }
+    for (var index = 0; index < scheduledTasks.length; index++) {
+      final item = scheduledTasks[index];
+      final oldItem = oldDelegate.scheduledTasks[index];
+      if (item.startMinutes != oldItem.startMinutes ||
+          item.endMinutes != oldItem.endMinutes) {
         return true;
       }
     }
@@ -295,23 +352,122 @@ class _ClockCenter extends StatelessWidget {
 }
 
 class _ClockLegend extends StatelessWidget {
-  const _ClockLegend();
+  const _ClockLegend({
+    required this.scheduledTasks,
+    required this.localizations,
+  });
+
+  final List<ScheduledTask> scheduledTasks;
+  final MaterialLocalizations localizations;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 18,
-      runSpacing: 8,
+    return Column(
       children: [
-        _LegendItem(color: colorScheme.primary, label: 'Available'),
-        _LegendItem(
-          color: colorScheme.surface.withValues(alpha: 0.72),
-          label: 'Unavailable',
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 18,
+          runSpacing: 8,
+          children: [
+            _LegendItem(color: colorScheme.primary, label: 'Available'),
+            _LegendItem(
+              color: colorScheme.surface.withValues(alpha: 0.72),
+              label: 'Unavailable',
+            ),
+          ],
         ),
+        if (scheduledTasks.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Scheduled tasks',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: colorScheme.onPrimaryContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var index = 0; index < scheduledTasks.length; index++)
+                _ScheduledTaskLegendItem(
+                  key: ValueKey('scheduled-task-legend-$index'),
+                  item: scheduledTasks[index],
+                  color:
+                      _scheduledTaskColors[index % _scheduledTaskColors.length],
+                  localizations: localizations,
+                ),
+            ],
+          ),
+        ],
       ],
+    );
+  }
+}
+
+class _ScheduledTaskLegendItem extends StatelessWidget {
+  const _ScheduledTaskLegendItem({
+    required this.item,
+    required this.color,
+    required this.localizations,
+    super.key,
+  });
+
+  final ScheduledTask item;
+  final Color color;
+  final MaterialLocalizations localizations;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final start = localizations.formatTimeOfDay(
+      _asTimeOfDay(item.startMinutes),
+    );
+    final end = localizations.formatTimeOfDay(_asTimeOfDay(item.endMinutes));
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 248),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: colorScheme.onPrimaryContainer.withValues(alpha: 0.32),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: colorScheme.onPrimaryContainer,
+                width: 1.2,
+              ),
+            ),
+          ),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Text(
+              '${item.task.name} · $start–$end',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -341,6 +497,7 @@ class _LegendItem extends StatelessWidget {
 
 String _buildSemanticsLabel({
   required List<AvailableTimeBlock> blocks,
+  required List<ScheduledTask> scheduledTasks,
   required MaterialLocalizations localizations,
   required int totalMinutes,
 }) {
@@ -355,6 +512,13 @@ String _buildSemanticsLabel({
     );
     final end = localizations.formatTimeOfDay(_asTimeOfDay(block.endMinutes));
     buffer.write(' Available from $start to $end.');
+  }
+  for (final item in scheduledTasks) {
+    final start = localizations.formatTimeOfDay(
+      _asTimeOfDay(item.startMinutes),
+    );
+    final end = localizations.formatTimeOfDay(_asTimeOfDay(item.endMinutes));
+    buffer.write(' Scheduled task ${item.task.name} from $start to $end.');
   }
   return buffer.toString();
 }
