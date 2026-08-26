@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/available_time_block.dart';
 import '../models/scheduled_task.dart';
 import '../widgets/available_time_clock.dart';
+import '../widgets/schedule_shortage_notice.dart';
 import '../widgets/screen_empty_state.dart';
 
 class AvailableTimeScreen extends StatelessWidget {
@@ -12,6 +13,8 @@ class AvailableTimeScreen extends StatelessWidget {
     required this.onAddBlock,
     required this.onEditBlock,
     required this.onDeleteBlock,
+    this.minutesShort = 0,
+    this.showScheduleWarning = false,
     super.key,
   });
 
@@ -20,6 +23,8 @@ class AvailableTimeScreen extends StatelessWidget {
   final VoidCallback onAddBlock;
   final ValueChanged<AvailableTimeBlock> onEditBlock;
   final ValueChanged<AvailableTimeBlock> onDeleteBlock;
+  final int minutesShort;
+  final bool showScheduleWarning;
 
   Future<void> _confirmDelete(
     BuildContext context,
@@ -80,6 +85,15 @@ class AvailableTimeScreen extends StatelessWidget {
             : ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
+                  if (showScheduleWarning) ...[
+                    ScheduleShortageNotice(
+                      minutesShort: minutesShort,
+                      message: (duration) => 'Add $duration more.',
+                      resolvedMessage:
+                          'Your changes may fit. Regenerate to confirm.',
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   AvailableTimeClock(
                     blocks: blocks,
                     scheduledTasks: scheduledTasks,

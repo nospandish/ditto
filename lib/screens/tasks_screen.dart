@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/ditto_task.dart';
+import '../widgets/schedule_shortage_notice.dart';
 import '../widgets/screen_empty_state.dart';
 
 class TasksScreen extends StatelessWidget {
@@ -9,6 +10,8 @@ class TasksScreen extends StatelessWidget {
     required this.onAddTask,
     required this.onEditTask,
     required this.onDeleteTask,
+    this.minutesShort = 0,
+    this.showScheduleWarning = false,
     super.key,
   });
 
@@ -16,6 +19,8 @@ class TasksScreen extends StatelessWidget {
   final VoidCallback onAddTask;
   final ValueChanged<DittoTask> onEditTask;
   final ValueChanged<DittoTask> onDeleteTask;
+  final int minutesShort;
+  final bool showScheduleWarning;
 
   Future<void> _confirmDelete(BuildContext context, DittoTask task) async {
     final shouldDelete = await showDialog<bool>(
@@ -70,14 +75,23 @@ class TasksScreen extends StatelessWidget {
               )
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                itemCount: tasks.length,
+                itemCount: tasks.length + (showScheduleWarning ? 1 : 0),
                 separatorBuilder: (context, index) =>
                     const SizedBox(height: 10),
                 itemBuilder: (context, index) {
-                  final task = tasks[index];
+                  if (showScheduleWarning && index == 0) {
+                    return ScheduleShortageNotice(
+                      minutesShort: minutesShort,
+                      message: (duration) => 'You\u2019re $duration short.',
+                      resolvedMessage:
+                          'Your changes may fit. Regenerate to confirm.',
+                    );
+                  }
+                  final taskIndex = index - (showScheduleWarning ? 1 : 0);
+                  final task = tasks[taskIndex];
                   return _TaskCard(
                     task: task,
-                    index: index,
+                    index: taskIndex,
                     onEdit: () => onEditTask(task),
                     onDelete: () => _confirmDelete(context, task),
                   );

@@ -22,17 +22,13 @@ void main() {
       'ditto.tasks.v1': jsonEncode([task.toJson()]),
       'ditto.available_time.v1': jsonEncode([block.toJson()]),
     });
-
     await tester.pumpWidget(const DittoApp());
     expect(find.byKey(const Key('storage-loading')), findsOneWidget);
     await tester.pumpAndSettle();
-
     expect(find.text('Ready to plan your day'), findsOneWidget);
-
     await tester.tap(find.text('Tasks'));
     await tester.pumpAndSettle();
     expect(find.text('Saved science project'), findsOneWidget);
-
     await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
     expect(find.textContaining('9:00 AM'), findsOneWidget);
@@ -42,7 +38,6 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const DittoApp());
     await tester.pumpAndSettle();
-
     await tester.tap(find.text('Tasks'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Add a task'));
@@ -55,7 +50,6 @@ void main() {
     await tester.ensureVisible(saveButton);
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
-
     final preferences = await SharedPreferences.getInstance();
     final stored = preferences.getString('ditto.tasks.v1');
     expect(stored, isNotNull);
@@ -77,10 +71,8 @@ void main() {
       'ditto.available_time.v1': jsonEncode([block.toJson()]),
       'ditto.has_generated_plan.v1': true,
     });
-
     await tester.pumpWidget(const DittoApp());
     await tester.pumpAndSettle();
-
     expect(find.text('Restored schedule task'), findsOneWidget);
     expect(find.textContaining('9:00 AM - 10:00 AM'), findsOneWidget);
     expect(find.text('Regenerate'), findsOneWidget);
@@ -101,13 +93,69 @@ void main() {
       'ditto.tasks.v1': jsonEncode([task.toJson()]),
       'ditto.available_time.v1': jsonEncode([block.toJson()]),
     });
-
     await tester.pumpWidget(const DittoApp());
     await tester.pumpAndSettle();
     await tester.tap(find.text('Generate'));
     await tester.pumpAndSettle();
-
     final preferences = await SharedPreferences.getInstance();
     expect(preferences.getBool('ditto.has_generated_plan.v1'), isTrue);
+  });
+
+  testWidgets('keeps an invalid schedule until a valid regeneration', (
+    tester,
+  ) async {
+    const firstTask = DittoTask(
+      name: 'First required task',
+      minimumMinutes: 30,
+      maximumMinutes: 30,
+      importance: TaskImportance.mustComplete,
+    );
+    const secondTask = DittoTask(
+      name: 'Second required task',
+      minimumMinutes: 30,
+      maximumMinutes: 30,
+      importance: TaskImportance.mustComplete,
+    );
+    const block = AvailableTimeBlock(
+      startMinutes: 9 * 60,
+      endMinutes: 9 * 60 + 45,
+    );
+    SharedPreferences.setMockInitialValues({
+      'ditto.tasks.v1': jsonEncode([firstTask.toJson(), secondTask.toJson()]),
+      'ditto.available_time.v1': jsonEncode([block.toJson()]),
+    });
+    await tester.pumpWidget(const DittoApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('generate-plan-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Time'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add 15 min more.'), findsOneWidget);
+    final editTime = find.byKey(const ValueKey('edit-time-block-0'));
+    await tester.scrollUntilVisible(
+      editTime,
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(editTime);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('increase-end-time')));
+    await tester.tap(find.byKey(const Key('save-time-block-button')));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, 1000));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Your changes may fit. Regenerate to confirm.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Today'));
+    await tester.pumpAndSettle();
+    expect(find.text('Not every required task fits'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('generate-plan-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Not every required task fits'), findsNothing);
+    await tester.tap(find.text('Time'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('schedule-shortage-notice')), findsNothing);
   });
 }

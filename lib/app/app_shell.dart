@@ -28,6 +28,8 @@ class _AppShellState extends State<AppShell> {
   final List<AvailableTimeBlock> _availableTimeBlocks = [];
   final ScheduleService _scheduleService = const ScheduleService();
   ScheduleBuildResult? _scheduleResult;
+  bool _hasUnconfirmedInvalidSchedule = false;
+  int _updatedMinutesShort = 0;
   LocalStorageService? _storageService;
   bool _isLoading = true;
 
@@ -58,6 +60,9 @@ class _AppShellState extends State<AppShell> {
         _tasks.addAll(tasks);
         _availableTimeBlocks.addAll(availableTime);
         _scheduleResult = restoredSchedule;
+        _hasUnconfirmedInvalidSchedule =
+            restoredSchedule?.hasImpossibleMustCompleteTasks ?? false;
+        _updatedMinutesShort = restoredSchedule?.minutesShort ?? 0;
         _isLoading = false;
       });
     } on Object {
@@ -111,8 +116,27 @@ class _AppShellState extends State<AppShell> {
         tasks: _tasks,
         availableTime: _availableTimeBlocks,
       );
+      _hasUnconfirmedInvalidSchedule =
+          _scheduleResult!.hasImpossibleMustCompleteTasks;
+      _updatedMinutesShort = _scheduleResult!.minutesShort;
     });
     unawaited(_saveHasGeneratedPlan(true));
+  }
+
+  void _refreshInvalidSchedule() {
+    if (!_hasUnconfirmedInvalidSchedule) {
+      _scheduleResult = null;
+      return;
+    }
+
+    final updatedResult = _scheduleService.buildSchedule(
+      tasks: _tasks,
+      availableTime: _availableTimeBlocks,
+    );
+    _updatedMinutesShort = updatedResult.minutesShort;
+    if (updatedResult.hasImpossibleMustCompleteTasks) {
+      _scheduleResult = updatedResult;
+    }
   }
 
   Future<void> _openTaskEditor([DittoTask? existingTask]) async {
@@ -127,13 +151,13 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       if (existingTask == null) {
         _tasks.add(editedTask);
-        _scheduleResult = null;
+        _refreshInvalidSchedule();
         return;
       }
 
       final taskIndex = _tasks.indexOf(existingTask);
       if (taskIndex != -1) _tasks[taskIndex] = editedTask;
-      _scheduleResult = null;
+      _refreshInvalidSchedule();
     });
     await Future.wait([_saveTasks(), _saveHasGeneratedPlan(false)]);
   }
@@ -141,7 +165,7 @@ class _AppShellState extends State<AppShell> {
   void _deleteTask(DittoTask task) {
     setState(() {
       _tasks.remove(task);
-      _scheduleResult = null;
+      _refreshInvalidSchedule();
     });
     unawaited(_saveTasks());
     unawaited(_saveHasGeneratedPlan(false));
@@ -174,7 +198,7 @@ class _AppShellState extends State<AppShell> {
       _availableTimeBlocks.sort(
         (first, second) => first.startMinutes.compareTo(second.startMinutes),
       );
-      _scheduleResult = null;
+      _refreshInvalidSchedule();
     });
     await Future.wait([_saveAvailableTime(), _saveHasGeneratedPlan(false)]);
   }
@@ -182,7 +206,7 @@ class _AppShellState extends State<AppShell> {
   void _deleteAvailableTimeBlock(AvailableTimeBlock block) {
     setState(() {
       _availableTimeBlocks.remove(block);
-      _scheduleResult = null;
+      _refreshInvalidSchedule();
     });
     unawaited(_saveAvailableTime());
     unawaited(_saveHasGeneratedPlan(false));
@@ -210,6 +234,8 @@ class _AppShellState extends State<AppShell> {
       ),
       TasksScreen(
         tasks: _tasks,
+        minutesShort: _updatedMinutesShort,
+        showScheduleWarning: _hasUnconfirmedInvalidSchedule,
         onAddTask: _openTaskEditor,
         onEditTask: _openTaskEditor,
         onDeleteTask: _deleteTask,
@@ -217,6 +243,8 @@ class _AppShellState extends State<AppShell> {
       AvailableTimeScreen(
         blocks: _availableTimeBlocks,
         scheduledTasks: _scheduleResult?.scheduledTasks ?? const [],
+        minutesShort: _updatedMinutesShort,
+        showScheduleWarning: _hasUnconfirmedInvalidSchedule,
         onAddBlock: _openAvailableTimeEditor,
         onEditBlock: _openAvailableTimeEditor,
         onDeleteBlock: _deleteAvailableTimeBlock,

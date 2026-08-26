@@ -1,6 +1,9 @@
+import 'package:ditto/models/available_time_block.dart';
 import 'package:ditto/models/ditto_task.dart';
 import 'package:ditto/models/schedule_build_result.dart';
 import 'package:ditto/models/scheduled_task.dart';
+import 'package:ditto/screens/available_time_screen.dart';
+import 'package:ditto/screens/tasks_screen.dart';
 import 'package:ditto/screens/today_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -153,5 +156,42 @@ void main() {
     expect(find.text('No tasks fit yet'), findsOneWidget);
     expect(find.text('Add available time'), findsOneWidget);
     expect(find.byKey(const Key('impossible-schedule-card')), findsNothing);
+  });
+
+  testWidgets('shows the shortage on the tasks page', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TasksScreen(
+          tasks: const [scheduledTask, unscheduledTask],
+          minutesShort: 15,
+          showScheduleWarning: true,
+          onAddTask: () {},
+          onEditTask: (_) {},
+          onDeleteTask: (_) {},
+        ),
+      ),
+    );
+
+    expect(find.text('You\u2019re 15 min short.'), findsOneWidget);
+  });
+
+  testWidgets('shows how much time to add on the time page', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AvailableTimeScreen(
+          blocks: const [
+            AvailableTimeBlock(startMinutes: 9 * 60, endMinutes: 9 * 60 + 45),
+          ],
+          scheduledTasks: const [],
+          minutesShort: 15,
+          showScheduleWarning: true,
+          onAddBlock: () {},
+          onEditBlock: (_) {},
+          onDeleteBlock: (_) {},
+        ),
+      ),
+    );
+
+    expect(find.text('Add 15 min more.'), findsOneWidget);
   });
 }
