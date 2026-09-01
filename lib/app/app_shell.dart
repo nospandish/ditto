@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/available_time_block.dart';
 import '../models/ditto_task.dart';
-import '../models/schedule_build_result.dart';
+import '../models/saved_plan.dart';
 import '../screens/add_available_time_screen.dart';
 import '../screens/add_task_screen.dart';
 import '../screens/available_time_screen.dart';
@@ -26,12 +26,18 @@ class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
   final List<DittoTask> _tasks = [];
   final List<AvailableTimeBlock> _availableTimeBlocks = [];
+  final List<SavedPlan> _savedPlans = [];
   final ScheduleService _scheduleService = const ScheduleService();
-  ScheduleBuildResult? _scheduleResult;
-  bool _hasUnconfirmedInvalidSchedule = false;
-  int _updatedMinutesShort = 0;
+  String? _activePlanId;
   LocalStorageService? _storageService;
   bool _isLoading = true;
+
+  SavedPlan? get _activePlan {
+    for (final plan in _savedPlans) {
+      if (plan.id == _activePlanId) return plan;
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -48,21 +54,39 @@ class _AppShellState extends State<AppShell> {
         ..sort(
           (first, second) => first.startMinutes.compareTo(second.startMinutes),
         );
-      final restoredSchedule = storage.loadHasGeneratedPlan()
-          ? _scheduleService.buildSchedule(
-              tasks: tasks,
-              availableTime: availableTime,
-            )
-          : null;
+      final plans = storage.loadPlans();
+      var activePlanId = storage.loadActivePlanId();
+      if (plans.isEmpty && storage.loadHasGeneratedPlan()) {
+        final createdAt = DateTime.now();
+        final migratedPlan = SavedPlan(
+          id: 'migrated-${createdAt.microsecondsSinceEpoch}',
+          name: 'Imported plan',
+          createdAt: createdAt,
+          tasks: tasks,
+          availableTime: availableTime,
+          scheduleResult: _scheduleService.buildSchedule(
+            tasks: tasks,
+            availableTime: availableTime,
+          ),
+        );
+        plans.add(migratedPlan);
+        activePlanId = migratedPlan.id;
+        await Future.wait([
+          storage.savePlans(plans),
+          storage.saveActivePlanId(activePlanId),
+        ]);
+      } else if (plans.isNotEmpty &&
+          !plans.any((plan) => plan.id == activePlanId)) {
+        activePlanId = plans.last.id;
+        await storage.saveActivePlanId(activePlanId);
+      }
       if (!mounted) return;
       setState(() {
         _storageService = storage;
         _tasks.addAll(tasks);
         _availableTimeBlocks.addAll(availableTime);
-        _scheduleResult = restoredSchedule;
-        _hasUnconfirmedInvalidSchedule =
-            restoredSchedule?.hasImpossibleMustCompleteTasks ?? false;
-        _updatedMinutesShort = restoredSchedule?.minutesShort ?? 0;
+        _savedPlans.addAll(plans);
+        _activePlanId = activePlanId;
         _isLoading = false;
       });
     } on Object {
@@ -94,9 +118,32 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Future<void> _saveHasGeneratedPlan(bool value) async {
+  Future<void> _savePlans() async {
     try {
-      await _storageService?.saveHasGeneratedPlan(value);
+      await Future.wait([
+        _storageService?.savePlans(_savedPlans) ?? Future<void>.value(),
+        _storageService?.saveActivePlanId(_activePlanId) ??
+            Future<void>.value(),
+        _storageService?.saveHasGeneratedPlan(_savedPlans.isNotEmpty) ??
+            Future<void>.value(),
+      ]);
+    } on Object {
+      if (mounted) _showStorageError();
+    }
+  }
+
+  Future<void> _saveWorkspaceAndPlans() async {
+    try {
+      await Future.wait([
+        _storageService?.saveTasks(_tasks) ?? Future<void>.value(),
+        _storageService?.saveAvailableTime(_availableTimeBlocks) ??
+            Future<void>.value(),
+        _storageService?.savePlans(_savedPlans) ?? Future<void>.value(),
+        _storageService?.saveActivePlanId(_activePlanId) ??
+            Future<void>.value(),
+        _storageService?.saveHasGeneratedPlan(_savedPlans.isNotEmpty) ??
+            Future<void>.value(),
+      ]);
     } on Object {
       if (mounted) _showStorageError();
     }
@@ -110,33 +157,163 @@ class _AppShellState extends State<AppShell> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _generatePlan() {
+  Future<void> _generatePlan() async {
+    final name = await _requestPlanName(suggestedName: _nextPlanName());
+    if (!mounted || name == null) return;
+
+    final plan = _buildPlan(name);
     setState(() {
-      _scheduleResult = _scheduleService.buildSchedule(
-        tasks: _tasks,
-        availableTime: _availableTimeBlocks,
-      );
-      _hasUnconfirmedInvalidSchedule =
-          _scheduleResult!.hasImpossibleMustCompleteTasks;
-      _updatedMinutesShort = _scheduleResult!.minutesShort;
+      _savedPlans.add(plan);
+      _activePlanId = plan.id;
     });
-    unawaited(_saveHasGeneratedPlan(true));
+    await _savePlans();
   }
 
-  void _refreshInvalidSchedule() {
-    if (!_hasUnconfirmedInvalidSchedule) {
-      _scheduleResult = null;
-      return;
-    }
-
-    final updatedResult = _scheduleService.buildSchedule(
+  SavedPlan _buildPlan(String name) {
+    final createdAt = DateTime.now();
+    final result = _scheduleService.buildSchedule(
       tasks: _tasks,
       availableTime: _availableTimeBlocks,
     );
-    _updatedMinutesShort = updatedResult.minutesShort;
-    if (updatedResult.hasImpossibleMustCompleteTasks) {
-      _scheduleResult = updatedResult;
+    return SavedPlan(
+      id: '${createdAt.microsecondsSinceEpoch}-${_savedPlans.length}',
+      name: name,
+      createdAt: createdAt,
+      tasks: _tasks,
+      availableTime: _availableTimeBlocks,
+      scheduleResult: result,
+    );
+  }
+
+  Future<void> _selectPlan(String planId) async {
+    if (_activePlanId == planId) return;
+    final targetIndex = _savedPlans.indexWhere((plan) => plan.id == planId);
+    if (targetIndex == -1) return;
+    final targetPlan = _savedPlans[targetIndex];
+    final activePlan = _activePlan;
+
+    if (activePlan != null &&
+        !activePlan.matchesInputs(
+          tasks: _tasks,
+          availableTime: _availableTimeBlocks,
+        )) {
+      final choice = await _requestPlanSwitchChoice();
+      if (!mounted || choice == null || choice == _PlanSwitchChoice.cancel) {
+        return;
+      }
+      if (choice == _PlanSwitchChoice.saveAsNew) {
+        final name = await _requestPlanName(suggestedName: _nextPlanName());
+        if (!mounted || name == null) return;
+        _savedPlans.add(_buildPlan(name));
+      }
     }
+
+    setState(() {
+      _activePlanId = targetPlan.id;
+      _tasks
+        ..clear()
+        ..addAll(targetPlan.tasks);
+      _availableTimeBlocks
+        ..clear()
+        ..addAll(targetPlan.availableTime);
+    });
+    await _saveWorkspaceAndPlans();
+  }
+
+  Future<void> _deletePlan(SavedPlan plan) async {
+    SavedPlan? fallbackPlan;
+    setState(() {
+      _savedPlans.removeWhere((candidate) => candidate.id == plan.id);
+      if (_activePlanId == plan.id) {
+        fallbackPlan = _savedPlans.isEmpty ? null : _savedPlans.last;
+        _activePlanId = fallbackPlan?.id;
+        if (fallbackPlan != null) {
+          _tasks
+            ..clear()
+            ..addAll(fallbackPlan!.tasks);
+          _availableTimeBlocks
+            ..clear()
+            ..addAll(fallbackPlan!.availableTime);
+        }
+      }
+    });
+    if (fallbackPlan == null) {
+      await _savePlans();
+    } else {
+      await _saveWorkspaceAndPlans();
+    }
+  }
+
+  Future<void> _renamePlan(SavedPlan plan) async {
+    final name = await _requestPlanName(
+      suggestedName: plan.name,
+      planBeingRenamed: plan,
+    );
+    if (!mounted || name == null || name == plan.name) return;
+    final index = _savedPlans.indexWhere(
+      (candidate) => candidate.id == plan.id,
+    );
+    if (index == -1) return;
+    setState(() => _savedPlans[index] = plan.copyWith(name: name));
+    await _savePlans();
+  }
+
+  String _nextPlanName() {
+    final usedNames = _savedPlans
+        .map((plan) => plan.name.toLowerCase())
+        .toSet();
+    var number = 1;
+    while (usedNames.contains('plan $number')) {
+      number++;
+    }
+    return 'Plan $number';
+  }
+
+  Future<String?> _requestPlanName({
+    required String suggestedName,
+    SavedPlan? planBeingRenamed,
+  }) {
+    final reservedNames = {
+      for (final plan in _savedPlans)
+        if (plan.id != planBeingRenamed?.id) plan.name.toLowerCase(),
+    };
+    return showDialog<String>(
+      context: context,
+      builder: (context) => _PlanNameDialog(
+        initialName: suggestedName,
+        reservedNames: reservedNames,
+      ),
+    );
+  }
+
+  Future<_PlanSwitchChoice?> _requestPlanSwitchChoice() {
+    return showDialog<_PlanSwitchChoice>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Save this changed setup?'),
+        content: const Text(
+          'Switching plans will replace the current tasks and available time. '
+          'You can save these changes as a new plan first.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, _PlanSwitchChoice.cancel),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            key: const Key('discard-plan-changes'),
+            onPressed: () => Navigator.pop(context, _PlanSwitchChoice.discard),
+            child: const Text('Switch without saving'),
+          ),
+          FilledButton(
+            key: const Key('save-setup-as-plan'),
+            onPressed: () =>
+                Navigator.pop(context, _PlanSwitchChoice.saveAsNew),
+            child: const Text('Save as new plan'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openTaskEditor([DittoTask? existingTask]) async {
@@ -151,24 +328,20 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       if (existingTask == null) {
         _tasks.add(editedTask);
-        _refreshInvalidSchedule();
         return;
       }
 
       final taskIndex = _tasks.indexOf(existingTask);
       if (taskIndex != -1) _tasks[taskIndex] = editedTask;
-      _refreshInvalidSchedule();
     });
-    await Future.wait([_saveTasks(), _saveHasGeneratedPlan(false)]);
+    await _saveTasks();
   }
 
   void _deleteTask(DittoTask task) {
     setState(() {
       _tasks.remove(task);
-      _refreshInvalidSchedule();
     });
     unawaited(_saveTasks());
-    unawaited(_saveHasGeneratedPlan(false));
   }
 
   Future<void> _openAvailableTimeEditor([
@@ -198,18 +371,15 @@ class _AppShellState extends State<AppShell> {
       _availableTimeBlocks.sort(
         (first, second) => first.startMinutes.compareTo(second.startMinutes),
       );
-      _refreshInvalidSchedule();
     });
-    await Future.wait([_saveAvailableTime(), _saveHasGeneratedPlan(false)]);
+    await _saveAvailableTime();
   }
 
   void _deleteAvailableTimeBlock(AvailableTimeBlock block) {
     setState(() {
       _availableTimeBlocks.remove(block);
-      _refreshInvalidSchedule();
     });
     unawaited(_saveAvailableTime());
-    unawaited(_saveHasGeneratedPlan(false));
   }
 
   @override
@@ -222,29 +392,49 @@ class _AppShellState extends State<AppShell> {
       );
     }
 
+    final activePlan = _activePlan;
+    final isActivePlanOutdated =
+        activePlan != null &&
+        !activePlan.matchesInputs(
+          tasks: _tasks,
+          availableTime: _availableTimeBlocks,
+        );
+    final currentScheduleResult = isActivePlanOutdated
+        ? null
+        : activePlan?.scheduleResult;
+    final showScheduleWarning =
+        currentScheduleResult?.hasImpossibleMustCompleteTasks ?? false;
+    final minutesShort = currentScheduleResult?.minutesShort ?? 0;
+
     final screens = <Widget>[
       TodayScreen(
         hasTasks: _tasks.isNotEmpty,
         hasAvailableTime: _availableTimeBlocks.isNotEmpty,
-        scheduleResult: _scheduleResult,
+        scheduleResult: activePlan?.scheduleResult,
+        savedPlans: _savedPlans,
+        activePlan: activePlan,
+        isActivePlanOutdated: isActivePlanOutdated,
         onAddTask: _openTaskEditor,
         onAddAvailableTime: _openAvailableTimeEditor,
         onReviewTasks: () => setState(() => _selectedIndex = 1),
         onGeneratePlan: _generatePlan,
+        onSelectPlan: _selectPlan,
+        onRenamePlan: _renamePlan,
+        onDeletePlan: _deletePlan,
       ),
       TasksScreen(
         tasks: _tasks,
-        minutesShort: _updatedMinutesShort,
-        showScheduleWarning: _hasUnconfirmedInvalidSchedule,
+        minutesShort: minutesShort,
+        showScheduleWarning: showScheduleWarning,
         onAddTask: _openTaskEditor,
         onEditTask: _openTaskEditor,
         onDeleteTask: _deleteTask,
       ),
       AvailableTimeScreen(
         blocks: _availableTimeBlocks,
-        scheduledTasks: _scheduleResult?.scheduledTasks ?? const [],
-        minutesShort: _updatedMinutesShort,
-        showScheduleWarning: _hasUnconfirmedInvalidSchedule,
+        scheduledTasks: currentScheduleResult?.scheduledTasks ?? const [],
+        minutesShort: minutesShort,
+        showScheduleWarning: showScheduleWarning,
         onAddBlock: _openAvailableTimeEditor,
         onEditBlock: _openAvailableTimeEditor,
         onDeleteBlock: _deleteAvailableTimeBlock,
@@ -276,6 +466,88 @@ class _AppShellState extends State<AppShell> {
           ),
         ],
       ),
+    );
+  }
+}
+
+enum _PlanSwitchChoice { saveAsNew, discard, cancel }
+
+class _PlanNameDialog extends StatefulWidget {
+  const _PlanNameDialog({
+    required this.initialName,
+    required this.reservedNames,
+  });
+
+  final String initialName;
+  final Set<String> reservedNames;
+
+  @override
+  State<_PlanNameDialog> createState() => _PlanNameDialogState();
+}
+
+class _PlanNameDialogState extends State<_PlanNameDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName)
+      ..selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: widget.initialName.length,
+      );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    Navigator.pop(context, _nameController.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Name this plan'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          key: const Key('plan-name-field'),
+          controller: _nameController,
+          autofocus: true,
+          maxLength: 40,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(
+            labelText: 'Plan name',
+            hintText: 'After-school plan',
+          ),
+          validator: (value) {
+            final name = value?.trim() ?? '';
+            if (name.isEmpty) return 'Enter a plan name.';
+            if (widget.reservedNames.contains(name.toLowerCase())) {
+              return 'Choose a different plan name.';
+            }
+            return null;
+          },
+          onFieldSubmitted: (_) => _submit(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('confirm-plan-name'),
+          onPressed: _submit,
+          child: const Text('Save plan'),
+        ),
+      ],
     );
   }
 }

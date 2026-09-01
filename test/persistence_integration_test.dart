@@ -8,6 +8,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  Future<void> generatePlan(WidgetTester tester, String name) async {
+    await tester.tap(find.byKey(const Key('generate-plan-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Name this plan'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('plan-name-field')), name);
+    await tester.tap(find.byKey(const Key('confirm-plan-name')));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('loads saved tasks and available time during startup', (
     tester,
   ) async {
@@ -75,7 +84,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Restored schedule task'), findsOneWidget);
     expect(find.textContaining('9:00 AM - 10:00 AM'), findsOneWidget);
-    expect(find.text('Regenerate'), findsOneWidget);
+    expect(find.text('New plan'), findsOneWidget);
   });
 
   testWidgets('records when the user generates a plan', (tester) async {
@@ -95,10 +104,13 @@ void main() {
     });
     await tester.pumpWidget(const DittoApp());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Generate'));
-    await tester.pumpAndSettle();
+    await generatePlan(tester, 'Afternoon plan');
     final preferences = await SharedPreferences.getInstance();
     expect(preferences.getBool('ditto.has_generated_plan.v1'), isTrue);
+    expect(
+      preferences.getString('ditto.saved_plans.v1'),
+      contains('Afternoon plan'),
+    );
   });
 
   testWidgets('keeps an invalid schedule until a valid regeneration', (
@@ -126,8 +138,7 @@ void main() {
     });
     await tester.pumpWidget(const DittoApp());
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('generate-plan-button')));
-    await tester.pumpAndSettle();
+    await generatePlan(tester, 'Short day');
     await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
     expect(find.text('Add 15 min more.'), findsOneWidget);
@@ -144,18 +155,161 @@ void main() {
     await tester.pumpAndSettle();
     await tester.drag(find.byType(ListView), const Offset(0, 1000));
     await tester.pumpAndSettle();
-    expect(
-      find.text('Your changes may fit. Regenerate to confirm.'),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('schedule-shortage-notice')), findsNothing);
     await tester.tap(find.text('Today'));
     await tester.pumpAndSettle();
     expect(find.text('Not every required task fits'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('generate-plan-button')));
-    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('outdated-plan-notice')), findsOneWidget);
+    await generatePlan(tester, 'Longer day');
     expect(find.text('Not every required task fits'), findsNothing);
     await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('schedule-shortage-notice')), findsNothing);
+  });
+
+  testWidgets('task edits preserve old plans and new plans can be selected', (
+    tester,
+  ) async {
+    const task = DittoTask(
+      name: 'Original scheduled task',
+      minimumMinutes: 30,
+      maximumMinutes: 30,
+      importance: TaskImportance.canWait,
+    );
+    const block = AvailableTimeBlock(startMinutes: 9 * 60, endMinutes: 10 * 60);
+    SharedPreferences.setMockInitialValues({
+      'ditto.tasks.v1': jsonEncode([task.toJson()]),
+      'ditto.available_time.v1': jsonEncode([block.toJson()]),
+    });
+    await tester.pumpWidget(const DittoApp());
+    await tester.pumpAndSettle();
+
+    await generatePlan(tester, 'Original plan');
+    expect(find.text('Original scheduled task'), findsOneWidget);
+
+    await tester.tap(find.text('Tasks'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('edit-task-0')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('task-name-field')),
+      'Edited scheduled task',
+    );
+    final saveButton = find.byKey(const Key('save-task-button'));
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Time'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('edit-time-block-0')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('increase-end-time')));
+    await tester.tap(find.byKey(const Key('save-time-block-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Today'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Original scheduled task'), findsOneWidget);
+    expect(find.text('Edited scheduled task'), findsNothing);
+    expect(find.byKey(const Key('outdated-plan-notice')), findsOneWidget);
+
+    var preferences = await SharedPreferences.getInstance();
+    var storedPlans =
+        jsonDecode(preferences.getString('ditto.saved_plans.v1')!)
+            as List<dynamic>;
+    expect(storedPlans, hasLength(1));
+
+    await generatePlan(tester, 'Edited plan');
+    expect(find.text('Edited scheduled task'), findsOneWidget);
+    expect(find.byKey(const Key('outdated-plan-notice')), findsNothing);
+
+    preferences = await SharedPreferences.getInstance();
+    storedPlans =
+        jsonDecode(preferences.getString('ditto.saved_plans.v1')!)
+            as List<dynamic>;
+    expect(storedPlans, hasLength(2));
+
+    await tester.tap(find.byKey(const Key('rename-saved-plan')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('plan-name-field')),
+      'After-school plan',
+    );
+    await tester.tap(find.byKey(const Key('confirm-plan-name')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('After-school plan'), findsOneWidget);
+
+    await tester.tap(find.text('Tasks'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('edit-task-0')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('task-name-field')),
+      'Temporary unsaved setup',
+    );
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Today'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('saved-plan-picker')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Original plan').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Save this changed setup?'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('discard-plan-changes')));
+    await tester.pumpAndSettle();
+    expect(find.text('Original scheduled task'), findsOneWidget);
+    expect(find.byKey(const Key('outdated-plan-notice')), findsNothing);
+
+    await tester.tap(find.text('Tasks'));
+    await tester.pumpAndSettle();
+    expect(find.text('Original scheduled task'), findsOneWidget);
+    expect(find.text('Temporary unsaved setup'), findsNothing);
+    await tester.tap(find.text('Time'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('edit-time-block-0')),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('9:00 AM – 10:00 AM'), findsOneWidget);
+    await tester.tap(find.text('Today'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('delete-saved-plan')));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete this plan?'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('confirm-delete-plan')));
+    await tester.pumpAndSettle();
+    expect(find.text('Edited scheduled task'), findsOneWidget);
+    expect(find.byKey(const Key('outdated-plan-notice')), findsNothing);
+
+    await tester.tap(find.text('Time'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('edit-time-block-0')),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('9:00 AM – 10:15 AM'), findsOneWidget);
+    await tester.tap(find.text('Today'));
+    await tester.pumpAndSettle();
+
+    preferences = await SharedPreferences.getInstance();
+    storedPlans =
+        jsonDecode(preferences.getString('ditto.saved_plans.v1')!)
+            as List<dynamic>;
+    expect(storedPlans, hasLength(1));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const DittoApp());
+    await tester.pumpAndSettle();
+    expect(find.text('Edited scheduled task'), findsOneWidget);
+    expect(find.textContaining('After-school plan'), findsOneWidget);
+    expect(find.text('New plan'), findsOneWidget);
   });
 }

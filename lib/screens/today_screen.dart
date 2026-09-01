@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/saved_plan.dart';
 import '../models/schedule_build_result.dart';
 import '../models/scheduled_task.dart';
 import '../widgets/screen_empty_state.dart';
@@ -13,6 +14,12 @@ class TodayScreen extends StatelessWidget {
     required this.onAddAvailableTime,
     required this.onReviewTasks,
     required this.onGeneratePlan,
+    this.savedPlans = const [],
+    this.activePlan,
+    this.isActivePlanOutdated = false,
+    this.onSelectPlan,
+    this.onRenamePlan,
+    this.onDeletePlan,
     super.key,
   });
 
@@ -23,6 +30,12 @@ class TodayScreen extends StatelessWidget {
   final VoidCallback onAddAvailableTime;
   final VoidCallback onReviewTasks;
   final VoidCallback onGeneratePlan;
+  final List<SavedPlan> savedPlans;
+  final SavedPlan? activePlan;
+  final bool isActivePlanOutdated;
+  final ValueChanged<String>? onSelectPlan;
+  final ValueChanged<SavedPlan>? onRenamePlan;
+  final ValueChanged<SavedPlan>? onDeletePlan;
 
   @override
   Widget build(BuildContext context) {
@@ -40,16 +53,31 @@ class TodayScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
               ),
               icon: const Icon(Icons.auto_awesome_rounded),
-              label: Text(scheduleResult == null ? 'Generate' : 'Regenerate'),
+              label: Text(savedPlans.isEmpty ? 'Generate' : 'New plan'),
             ),
           const SizedBox(width: 8),
         ],
       ),
-      body: SafeArea(child: _body()),
+      body: SafeArea(child: _body(context)),
     );
   }
 
-  Widget _body() {
+  Widget _body(BuildContext context) {
+    if (scheduleResult != null && activePlan != null) {
+      return Column(
+        children: [
+          _SavedPlanHeader(
+            plans: savedPlans,
+            activePlan: activePlan!,
+            onSelectPlan: onSelectPlan,
+            onRenamePlan: onRenamePlan,
+            onDeletePlan: onDeletePlan,
+          ),
+          if (isActivePlanOutdated) const _OutdatedPlanNotice(),
+          Expanded(child: _scheduleBody()),
+        ],
+      );
+    }
     if (!hasTasks) {
       return ScreenEmptyState(
         icon: Icons.calendar_today_rounded,
@@ -81,6 +109,10 @@ class TodayScreen extends StatelessWidget {
       );
     }
 
+    return _scheduleBody();
+  }
+
+  Widget _scheduleBody() {
     final result = scheduleResult!;
     if (result.hasImpossibleMustCompleteTasks) {
       return _ImpossibleScheduleView(
@@ -109,6 +141,149 @@ class TodayScreen extends StatelessWidget {
           _ScheduleCard(item: result.scheduledTasks[index]),
     );
   }
+}
+
+class _SavedPlanHeader extends StatelessWidget {
+  const _SavedPlanHeader({
+    required this.plans,
+    required this.activePlan,
+    required this.onSelectPlan,
+    required this.onRenamePlan,
+    required this.onDeletePlan,
+  });
+
+  final List<SavedPlan> plans;
+  final SavedPlan activePlan;
+  final ValueChanged<String>? onSelectPlan;
+  final ValueChanged<SavedPlan>? onRenamePlan;
+  final ValueChanged<SavedPlan>? onDeletePlan;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Saved plan',
+                prefixIcon: Icon(Icons.bookmarks_outlined),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  key: const Key('saved-plan-picker'),
+                  value: activePlan.id,
+                  isExpanded: true,
+                  isDense: true,
+                  items: [
+                    for (final plan in plans)
+                      DropdownMenuItem(
+                        value: plan.id,
+                        child: Text(
+                          _planLabel(context, plan),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: onSelectPlan == null
+                      ? null
+                      : (value) {
+                          if (value != null) onSelectPlan!(value);
+                        },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
+            key: const Key('rename-saved-plan'),
+            tooltip: 'Rename selected plan',
+            onPressed: onRenamePlan == null
+                ? null
+                : () => onRenamePlan!(activePlan),
+            icon: const Icon(Icons.edit_outlined),
+          ),
+          const SizedBox(width: 4),
+          IconButton.filledTonal(
+            key: const Key('delete-saved-plan'),
+            tooltip: 'Delete selected plan',
+            onPressed: onDeletePlan == null
+                ? null
+                : () => _confirmDelete(context),
+            icon: const Icon(Icons.delete_outline_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this plan?'),
+        content: const Text(
+          'Its saved tasks and scheduled times will be removed. If another '
+          'plan remains, Ditto will load it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('confirm-delete-plan'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete plan'),
+          ),
+        ],
+      ),
+    );
+    if (shouldDelete == true) onDeletePlan?.call(activePlan);
+  }
+}
+
+class _OutdatedPlanNotice extends StatelessWidget {
+  const _OutdatedPlanNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      key: const Key('outdated-plan-notice'),
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.history_rounded, color: colorScheme.onTertiaryContainer),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'This plan uses earlier task or available-time details.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onTertiaryContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _planLabel(BuildContext context, SavedPlan plan) {
+  final localizations = MaterialLocalizations.of(context);
+  final date = localizations.formatShortDate(plan.createdAt);
+  final time = localizations.formatTimeOfDay(
+    TimeOfDay.fromDateTime(plan.createdAt),
+  );
+  return '${plan.name} · $date, $time';
 }
 
 class _ImpossibleScheduleView extends StatelessWidget {
