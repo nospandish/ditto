@@ -58,6 +58,7 @@ void main() {
           hasTasks: true,
           hasAvailableTime: true,
           scheduleResult: result,
+          currentMinutes: 8 * 60,
           onAddTask: () {},
           onAddAvailableTime: () => addedTime = true,
           onReviewTasks: () => reviewedTasks = true,
@@ -105,6 +106,7 @@ void main() {
           hasTasks: true,
           hasAvailableTime: true,
           scheduleResult: result,
+          currentMinutes: 8 * 60,
           onAddTask: () {},
           onAddAvailableTime: () {},
           onReviewTasks: () {},
@@ -156,6 +158,114 @@ void main() {
     expect(find.text('No tasks fit yet'), findsOneWidget);
     expect(find.text('Add available time'), findsOneWidget);
     expect(find.byKey(const Key('impossible-schedule-card')), findsNothing);
+  });
+
+  testWidgets('shows a summarized timeline for a successful plan', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final result = ScheduleBuildResult(
+      scheduledTasks: const [
+        ScheduledTask(
+          task: scheduledTask,
+          startMinutes: 9 * 60,
+          endMinutes: 9 * 60 + 30,
+        ),
+        ScheduledTask(
+          task: optionalTask,
+          startMinutes: 9 * 60 + 30,
+          endMinutes: 10 * 60 + 15,
+        ),
+      ],
+      unscheduledTasks: const [],
+      issues: const [],
+      totalAvailableMinutes: 75,
+      mustCompleteMinimumMinutes: 30,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TodayScreen(
+          hasTasks: true,
+          hasAvailableTime: true,
+          scheduleResult: result,
+          currentMinutes: 8 * 60,
+          onAddTask: () {},
+          onAddAvailableTime: () {},
+          onReviewTasks: () {},
+          onGeneratePlan: () {},
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('schedule-timeline')), findsOneWidget);
+    expect(find.text('Today\u2019s plan'), findsOneWidget);
+    expect(find.text('2 tasks \u00b7 1h 15m planned'), findsOneWidget);
+    expect(find.byKey(const Key('next-task-badge')), findsOneWidget);
+    expect(find.text('9:00 AM'), findsOneWidget);
+    expect(find.text('Finish outline'), findsOneWidget);
+    expect(find.text('Organize notes'), findsOneWidget);
+  });
+
+  testWidgets('colors the current task blue and previous tasks gray', (
+    tester,
+  ) async {
+    final result = ScheduleBuildResult(
+      scheduledTasks: const [
+        ScheduledTask(
+          task: scheduledTask,
+          startMinutes: 9 * 60,
+          endMinutes: 9 * 60 + 30,
+        ),
+        ScheduledTask(
+          task: optionalTask,
+          startMinutes: 9 * 60 + 30,
+          endMinutes: 10 * 60 + 15,
+        ),
+      ],
+      unscheduledTasks: const [],
+      issues: const [],
+      totalAvailableMinutes: 75,
+      mustCompleteMinimumMinutes: 30,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TodayScreen(
+          hasTasks: true,
+          hasAvailableTime: true,
+          scheduleResult: result,
+          currentMinutes: 9 * 60 + 45,
+          onAddTask: () {},
+          onAddAvailableTime: () {},
+          onReviewTasks: () {},
+          onGeneratePlan: () {},
+        ),
+      ),
+    );
+
+    final previousCard = tester.widget<Card>(
+      find.byKey(const ValueKey('schedule-task-Finish outline')),
+    );
+    final currentCard = tester.widget<Card>(
+      find.byKey(const ValueKey('schedule-task-Organize notes')),
+    );
+    final currentShape = currentCard.shape! as RoundedRectangleBorder;
+
+    expect(
+      previousCard.color,
+      Theme.of(
+        tester.element(find.byType(TodayScreen)),
+      ).colorScheme.surfaceContainerHighest,
+    );
+    expect(currentCard.color, const Color(0xFF2563EB).withValues(alpha: 0.08));
+    expect(currentShape.side.color, const Color(0xFF2563EB));
+    expect(find.byKey(const Key('current-task-badge')), findsOneWidget);
+    expect(find.text('Now'), findsOneWidget);
   });
 
   testWidgets('shows the shortage on the tasks page', (tester) async {

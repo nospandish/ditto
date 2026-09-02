@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/saved_plan.dart';
+import '../models/ditto_task.dart';
 import '../models/schedule_build_result.dart';
 import '../models/scheduled_task.dart';
 import '../widgets/screen_empty_state.dart';
@@ -20,6 +21,7 @@ class TodayScreen extends StatelessWidget {
     this.onSelectPlan,
     this.onRenamePlan,
     this.onDeletePlan,
+    this.currentMinutes,
     super.key,
   });
 
@@ -36,6 +38,7 @@ class TodayScreen extends StatelessWidget {
   final ValueChanged<String>? onSelectPlan;
   final ValueChanged<SavedPlan>? onRenamePlan;
   final ValueChanged<SavedPlan>? onDeletePlan;
+  final int? currentMinutes;
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +120,7 @@ class TodayScreen extends StatelessWidget {
     if (result.hasImpossibleMustCompleteTasks) {
       return _ImpossibleScheduleView(
         result: result,
+        currentMinutes: currentMinutes ?? _minutesNow(),
         onReviewTasks: onReviewTasks,
         onAddAvailableTime: onAddAvailableTime,
       );
@@ -133,12 +137,11 @@ class TodayScreen extends StatelessWidget {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      itemCount: result.scheduledTasks.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 10),
-      itemBuilder: (context, index) =>
-          _ScheduleCard(item: result.scheduledTasks[index]),
+    return _ScheduleTimeline(
+      items: result.scheduledTasks,
+      showSummary: true,
+      showNextBadge: true,
+      currentMinutes: currentMinutes ?? _minutesNow(),
     );
   }
 }
@@ -289,11 +292,13 @@ String _planLabel(BuildContext context, SavedPlan plan) {
 class _ImpossibleScheduleView extends StatelessWidget {
   const _ImpossibleScheduleView({
     required this.result,
+    required this.currentMinutes,
     required this.onReviewTasks,
     required this.onAddAvailableTime,
   });
 
   final ScheduleBuildResult result;
+  final int currentMinutes;
   final VoidCallback onReviewTasks;
   final VoidCallback onAddAvailableTime;
 
@@ -323,15 +328,13 @@ class _ImpossibleScheduleView extends StatelessWidget {
         ),
         if (result.scheduledTasks.isNotEmpty) ...[
           const SizedBox(height: 12),
-          for (
-            var index = 0;
-            index < result.scheduledTasks.length;
-            index++
-          ) ...[
-            _ScheduleCard(item: result.scheduledTasks[index]),
-            if (index != result.scheduledTasks.length - 1)
-              const SizedBox(height: 10),
-          ],
+          _ScheduleTimeline(
+            items: result.scheduledTasks,
+            showSummary: false,
+            showNextBadge: false,
+            currentMinutes: currentMinutes,
+            shrinkWrap: true,
+          ),
         ],
       ],
     );
@@ -447,26 +450,354 @@ class _ImpossibleScheduleCard extends StatelessWidget {
   }
 }
 
-class _ScheduleCard extends StatelessWidget {
-  const _ScheduleCard({required this.item});
+class _ScheduleTimeline extends StatelessWidget {
+  const _ScheduleTimeline({
+    required this.items,
+    required this.showSummary,
+    required this.showNextBadge,
+    required this.currentMinutes,
+    this.shrinkWrap = false,
+  });
 
-  final ScheduledTask item;
+  final List<ScheduledTask> items;
+  final bool showSummary;
+  final bool showNextBadge;
+  final int currentMinutes;
+  final bool shrinkWrap;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: ListTile(
-        leading: const Icon(Icons.check_circle_outline_rounded),
-        title: Text(item.task.name),
-        subtitle: Text(
-          '${_formatTime(context, item.startMinutes)} - '
-          '${_formatTime(context, item.endMinutes)} \u00b7 '
-          '${item.durationMinutes} min \u00b7 ${item.task.importance.label}',
+    final totalMinutes = items.fold<int>(
+      0,
+      (total, item) => total + item.durationMinutes,
+    );
+
+    final states = items
+        .map((item) => _timelineState(item, currentMinutes))
+        .toList(growable: false);
+    final currentIndex = states.indexOf(_TimelineTaskState.current);
+    final nextIndex = currentIndex == -1
+        ? states.indexOf(_TimelineTaskState.upcoming)
+        : -1;
+
+    final children = <Widget>[
+      if (showSummary) ...[
+        _ScheduleSummary(taskCount: items.length, totalMinutes: totalMinutes),
+        const SizedBox(height: 18),
+      ],
+      for (var index = 0; index < items.length; index++)
+        _TimelineItem(
+          item: items[index],
+          isFirst: index == 0,
+          isLast: index == items.length - 1,
+          state: states[index],
+          badgeLabel: !showNextBadge
+              ? null
+              : index == currentIndex
+              ? 'Now'
+              : index == nextIndex
+              ? 'Next'
+              : null,
         ),
+    ];
+
+    if (shrinkWrap) {
+      return Column(children: children);
+    }
+
+    return ListView(
+      key: const Key('schedule-timeline'),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+      children: children,
+    );
+  }
+}
+
+class _ScheduleSummary extends StatelessWidget {
+  const _ScheduleSummary({required this.taskCount, required this.totalMinutes});
+
+  final int taskCount;
+  final int totalMinutes;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      key: const Key('schedule-summary'),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.today_rounded, color: colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Today\u2019s plan',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$taskCount ${taskCount == 1 ? 'task' : 'tasks'} \u00b7 '
+                  '${_formatDuration(totalMinutes)} planned',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _TimelineItem extends StatelessWidget {
+  const _TimelineItem({
+    required this.item,
+    required this.isFirst,
+    required this.isLast,
+    required this.state,
+    required this.badgeLabel,
+  });
+
+  final ScheduledTask item;
+  final bool isFirst;
+  final bool isLast;
+  final _TimelineTaskState state;
+  final String? badgeLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final priorityColor = switch (item.task.importance) {
+      TaskImportance.mustComplete => colorScheme.error,
+      TaskImportance.canWait => const Color(0xFF9A6700),
+      TaskImportance.optional => colorScheme.primary,
+    };
+    const currentColor = Color(0xFF2563EB);
+    final stateColor = switch (state) {
+      _TimelineTaskState.previous => colorScheme.outline,
+      _TimelineTaskState.current => currentColor,
+      _TimelineTaskState.upcoming => priorityColor,
+    };
+    final cardColor = switch (state) {
+      _TimelineTaskState.previous => colorScheme.surfaceContainerHighest,
+      _TimelineTaskState.current => currentColor.withValues(alpha: 0.08),
+      _TimelineTaskState.upcoming => null,
+    };
+    final titleColor = state == _TimelineTaskState.previous
+        ? colorScheme.onSurfaceVariant
+        : colorScheme.onSurface;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 70,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const SizedBox(height: 13),
+                Text(
+                  _formatTime(context, item.startMinutes),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _formatTime(context, item.endMinutes),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 18,
+            child: Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                if (!isFirst)
+                  Positioned(
+                    top: 0,
+                    height: 17,
+                    child: Container(
+                      width: 2,
+                      color: colorScheme.outlineVariant,
+                    ),
+                  ),
+                if (!isLast)
+                  Positioned(
+                    top: 17,
+                    bottom: 0,
+                    child: Container(
+                      width: 2,
+                      color: colorScheme.outlineVariant,
+                    ),
+                  ),
+                Positioned(
+                  top: 12,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: stateColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colorScheme.surface, width: 2),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Card(
+                key: ValueKey('schedule-task-${item.task.name}'),
+                margin: EdgeInsets.zero,
+                color: cardColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: state == _TimelineTaskState.current
+                      ? const BorderSide(color: currentColor, width: 1.5)
+                      : BorderSide.none,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.task.name,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: titleColor,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          ),
+                          if (badgeLabel != null)
+                            Container(
+                              key: ValueKey(
+                                badgeLabel == 'Now'
+                                    ? 'current-task-badge'
+                                    : 'next-task-badge',
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: stateColor.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: Text(
+                                badgeLabel!,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: stateColor,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          _TaskDetailChip(
+                            icon: Icons.timer_outlined,
+                            label: _formatDuration(item.durationMinutes),
+                          ),
+                          _TaskDetailChip(
+                            label: item.task.importance.label,
+                            color: state == _TimelineTaskState.previous
+                                ? colorScheme.outline
+                                : priorityColor,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TaskDetailChip extends StatelessWidget {
+  const _TaskDetailChip({required this.label, this.icon, this.color});
+
+  final String label;
+  final IconData? icon;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = color ?? Theme.of(context).colorScheme.onSurfaceVariant;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: foreground.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 15, color: foreground),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _TimelineTaskState { previous, current, upcoming }
+
+_TimelineTaskState _timelineState(ScheduledTask item, int currentMinutes) {
+  if (item.endMinutes <= currentMinutes) return _TimelineTaskState.previous;
+  if (item.startMinutes <= currentMinutes) return _TimelineTaskState.current;
+  return _TimelineTaskState.upcoming;
+}
+
+int _minutesNow() {
+  final now = DateTime.now();
+  return now.hour * 60 + now.minute;
 }
 
 String _resultExplanation(ScheduleBuildResult result) {

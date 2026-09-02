@@ -83,7 +83,8 @@ void main() {
     await tester.pumpWidget(const DittoApp());
     await tester.pumpAndSettle();
     expect(find.text('Restored schedule task'), findsOneWidget);
-    expect(find.textContaining('9:00 AM - 10:00 AM'), findsOneWidget);
+    expect(find.text('9:00 AM'), findsOneWidget);
+    expect(find.text('10:00 AM'), findsOneWidget);
     expect(find.text('New plan'), findsOneWidget);
   });
 
