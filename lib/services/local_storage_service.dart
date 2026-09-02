@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/available_time_block.dart';
 import '../models/ditto_task.dart';
+import '../models/saved_plan.dart';
 
 class LocalStorageService {
   LocalStorageService(this._preferences);
@@ -11,6 +12,8 @@ class LocalStorageService {
   static const _tasksKey = 'ditto.tasks.v1';
   static const _availableTimeKey = 'ditto.available_time.v1';
   static const _hasGeneratedPlanKey = 'ditto.has_generated_plan.v1';
+  static const _savedPlansKey = 'ditto.saved_plans.v1';
+  static const _activePlanIdKey = 'ditto.active_plan_id.v1';
 
   final SharedPreferences _preferences;
 
@@ -48,11 +51,36 @@ class LocalStorageService {
     return _preferences.getBool(_hasGeneratedPlanKey) ?? false;
   }
 
+  Future<void> savePlans(List<SavedPlan> plans) async {
+    final value = jsonEncode(plans.map((plan) => plan.toJson()).toList());
+    final saved = await _preferences.setString(_savedPlansKey, value);
+    if (!saved) throw StateError('Could not save plans.');
+  }
+
+  List<SavedPlan> loadPlans() {
+    return _loadList(_savedPlansKey, SavedPlan.fromJson);
+  }
+
+  Future<void> saveActivePlanId(String? planId) async {
+    final saved = planId == null
+        ? await _preferences.remove(_activePlanIdKey)
+        : await _preferences.setString(_activePlanIdKey, planId);
+    if (!saved && planId != null) {
+      throw StateError('Could not save the selected plan.');
+    }
+  }
+
+  String? loadActivePlanId() {
+    return _preferences.getString(_activePlanIdKey);
+  }
+
   Future<void> clearAllData() async {
     final results = await Future.wait([
       _preferences.remove(_tasksKey),
       _preferences.remove(_availableTimeKey),
       _preferences.remove(_hasGeneratedPlanKey),
+      _preferences.remove(_savedPlansKey),
+      _preferences.remove(_activePlanIdKey),
     ]);
     if (results.any((removed) => !removed)) {
       throw StateError('Could not clear saved data.');
