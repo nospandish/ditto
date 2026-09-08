@@ -157,6 +157,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 maximumMinutes: _maximumMinutes,
                 minimumController: _minimumController,
                 maximumController: _maximumController,
+                sliderColor: const Color(0xFFAFB208),
                 onSliderChanged: (values) => _setDurations(
                   minimum: values.start.round(),
                   maximum: values.end.round(),
@@ -254,6 +255,7 @@ class _DurationRangeEditor extends StatelessWidget {
     required this.maximumMinutes,
     required this.minimumController,
     required this.maximumController,
+    required this.sliderColor,
     required this.onSliderChanged,
     required this.onTypedChanged,
     required this.onCommitTyped,
@@ -264,6 +266,7 @@ class _DurationRangeEditor extends StatelessWidget {
   final int maximumMinutes;
   final TextEditingController minimumController;
   final TextEditingController maximumController;
+  final Color sliderColor;
   final ValueChanged<RangeValues> onSliderChanged;
   final VoidCallback onTypedChanged;
   final VoidCallback onCommitTyped;
@@ -303,6 +306,8 @@ class _DurationRangeEditor extends StatelessWidget {
               _formatDuration(maximumMinutes),
             ),
             values: RangeValues(sliderMinimum, sliderMaximum),
+            activeColor: sliderColor,
+            inactiveColor: sliderColor.withValues(alpha: 0.22),
             onChanged: onSliderChanged,
           ),
           Row(
