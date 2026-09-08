@@ -7,6 +7,27 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const service = ScheduleService();
 
+  test('builds remaining work from the current time onward', () {
+    const task = DittoTask(
+      name: 'Remaining work',
+      minimumMinutes: 30,
+      maximumMinutes: 30,
+      importance: TaskImportance.mustComplete,
+    );
+
+    final result = service.buildRemainingSchedule(
+      tasks: const [task],
+      availableTime: const [
+        AvailableTimeBlock(startMinutes: 9 * 60, endMinutes: 11 * 60),
+      ],
+      currentMinutes: 10 * 60,
+    );
+
+    expect(result.scheduledTasks.single.startMinutes, 10 * 60);
+    expect(result.scheduledTasks.single.endMinutes, 10 * 60 + 30);
+    expect(result.totalAvailableMinutes, 60);
+  });
+
   test('uses maximum durations when all tasks have enough time', () {
     const optional = DittoTask(
       name: 'Read',

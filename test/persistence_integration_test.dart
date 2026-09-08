@@ -200,6 +200,71 @@ void main() {
     },
   );
 
+  testWidgets('regeneration creates a linked version that can be undone', (
+    tester,
+  ) async {
+    const finishedTask = DittoTask(
+      name: 'Finish first task',
+      minimumMinutes: 30,
+      maximumMinutes: 30,
+      importance: TaskImportance.mustComplete,
+    );
+    const remainingTask = DittoTask(
+      name: 'Continue second task',
+      minimumMinutes: 30,
+      maximumMinutes: 30,
+      importance: TaskImportance.canWait,
+    );
+    const block = AvailableTimeBlock(startMinutes: 9 * 60, endMinutes: 12 * 60);
+    SharedPreferences.setMockInitialValues({
+      'ditto.tasks.v1': jsonEncode([
+        finishedTask.toJson(),
+        remainingTask.toJson(),
+      ]),
+      'ditto.available_time.v1': jsonEncode([block.toJson()]),
+    });
+
+    await tester.pumpWidget(DittoApp(currentMinutesProvider: () => 10 * 60));
+    await tester.pumpAndSettle();
+    await generatePlan(tester, 'Study plan');
+
+    await tester.tap(
+      find.byKey(const ValueKey('status-menu-schedule-task-Finish first task')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('status-option-done-Finish first task')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('regenerate-remaining-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Regenerate remaining plan?'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('confirm-regenerate-remaining')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Earlier in this plan'), findsOneWidget);
+    expect(find.text('Continue second task'), findsOneWidget);
+    expect(find.byKey(const Key('undo-plan-version-button')), findsOneWidget);
+
+    final preferences = await SharedPreferences.getInstance();
+    final storedPlans =
+        jsonDecode(preferences.getString('ditto.saved_plans.v1')!)
+            as List<dynamic>;
+    expect(storedPlans, hasLength(2));
+    final firstPlan = storedPlans[0] as Map<String, dynamic>;
+    final regeneratedPlan = storedPlans[1] as Map<String, dynamic>;
+    expect(regeneratedPlan['parentPlanId'], firstPlan['id']);
+    expect(regeneratedPlan['rootPlanId'], firstPlan['id']);
+    expect((regeneratedPlan['historyTasks'] as List<dynamic>), hasLength(1));
+
+    await tester.tap(find.byKey(const Key('undo-plan-version-button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('undo-plan-version-button')), findsNothing);
+    expect(find.text('Earlier in this plan'), findsNothing);
+    expect(find.text('Finish first task'), findsOneWidget);
+  });
+
   testWidgets('keeps an invalid schedule until a valid regeneration', (
     tester,
   ) async {

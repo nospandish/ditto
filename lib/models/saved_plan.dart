@@ -11,12 +11,17 @@ class SavedPlan {
     required List<DittoTask> tasks,
     required List<AvailableTimeBlock> availableTime,
     required this.scheduleResult,
+    this.parentPlanId,
+    String? rootPlanId,
   }) : tasks = List.unmodifiable(tasks),
-       availableTime = List.unmodifiable(availableTime);
+       availableTime = List.unmodifiable(availableTime),
+       rootPlanId = rootPlanId ?? id;
 
   final String id;
   final String name;
   final DateTime createdAt;
+  final String? parentPlanId;
+  final String rootPlanId;
   final List<DittoTask> tasks;
   final List<AvailableTimeBlock> availableTime;
   final ScheduleBuildResult scheduleResult;
@@ -29,6 +34,8 @@ class SavedPlan {
       tasks: tasks,
       availableTime: availableTime,
       scheduleResult: scheduleResult ?? this.scheduleResult,
+      parentPlanId: parentPlanId,
+      rootPlanId: rootPlanId,
     );
   }
 
@@ -65,10 +72,21 @@ class SavedPlan {
       'id': id,
       'name': name,
       'createdAt': createdAt.toIso8601String(),
+      'parentPlanId': parentPlanId,
+      'rootPlanId': rootPlanId,
       'tasks': tasks.map((task) => task.toJson()).toList(),
       'availableTime': availableTime.map((block) => block.toJson()).toList(),
       'scheduledTasks': [
         for (final item in scheduleResult.scheduledTasks)
+          {
+            'taskIndex': taskIndex(item.task),
+            'startMinutes': item.startMinutes,
+            'endMinutes': item.endMinutes,
+            'status': item.status.name,
+          },
+      ],
+      'historyTasks': [
+        for (final item in scheduleResult.historyTasks)
           {
             'taskIndex': taskIndex(item.task),
             'startMinutes': item.startMinutes,
@@ -92,6 +110,7 @@ class SavedPlan {
     final taskValues = json['tasks'];
     final timeValues = json['availableTime'];
     final scheduledValues = json['scheduledTasks'];
+    final historyValues = json['historyTasks'];
     final unscheduledValues = json['unscheduledTaskIndexes'];
     final issueValues = json['issues'];
     if (taskValues is! List ||
@@ -135,6 +154,23 @@ class SavedPlan {
           );
         }(),
     ];
+    final historyTasks = [
+      for (final value in historyValues is List ? historyValues : const [])
+        () {
+          final historyValue = value as Map;
+          final statusValue = historyValue['status'];
+          final status = statusValue is String
+              ? ScheduledTaskStatus.values.asNameMap()[statusValue] ??
+                    ScheduledTaskStatus.planned
+              : ScheduledTaskStatus.planned;
+          return ScheduledTask(
+            task: taskAt(historyValue['taskIndex']),
+            startMinutes: historyValue['startMinutes'] as int,
+            endMinutes: historyValue['endMinutes'] as int,
+            status: status,
+          );
+        }(),
+    ];
     final unscheduledTasks = [
       for (final value in unscheduledValues) taskAt(value),
     ];
@@ -150,10 +186,13 @@ class SavedPlan {
       id: json['id'] as String,
       name: json['name'] as String? ?? 'Saved plan',
       createdAt: DateTime.parse(json['createdAt'] as String),
+      parentPlanId: json['parentPlanId'] as String?,
+      rootPlanId: json['rootPlanId'] as String? ?? json['id'] as String,
       tasks: tasks,
       availableTime: availableTime,
       scheduleResult: ScheduleBuildResult(
         scheduledTasks: scheduledTasks,
+        historyTasks: historyTasks,
         unscheduledTasks: unscheduledTasks,
         issues: issues,
         totalAvailableMinutes: json['totalAvailableMinutes'] as int,

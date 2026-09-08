@@ -6,9 +6,10 @@ import '../widgets/paper_background.dart';
 import 'app_shell.dart';
 
 class DittoApp extends StatelessWidget {
-  const DittoApp({this.storageService, super.key});
+  const DittoApp({this.storageService, this.currentMinutesProvider, super.key});
 
   final LocalStorageService? storageService;
+  final int Function()? currentMinutesProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +19,10 @@ class DittoApp extends StatelessWidget {
       theme: AppTheme.light,
       builder: (context, child) =>
           PaperBackground(child: child ?? const SizedBox.shrink()),
-      home: AppShell(storageService: storageService),
+      home: AppShell(
+        storageService: storageService,
+        currentMinutesProvider: currentMinutesProvider,
+      ),
     );
   }
 }

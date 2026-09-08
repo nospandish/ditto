@@ -15,9 +15,10 @@ import '../services/local_storage_service.dart';
 import '../services/schedule_service.dart';
 
 class AppShell extends StatefulWidget {
-  const AppShell({this.storageService, super.key});
+  const AppShell({this.storageService, this.currentMinutesProvider, super.key});
 
   final LocalStorageService? storageService;
+  final int Function()? currentMinutesProvider;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -32,6 +33,9 @@ class _AppShellState extends State<AppShell> {
   String? _activePlanId;
   LocalStorageService? _storageService;
   bool _isLoading = true;
+
+  int get _currentMinutes =>
+      widget.currentMinutesProvider?.call() ?? _minutesNow();
 
   SavedPlan? get _activePlan {
     for (final plan in _savedPlans) {
@@ -170,7 +174,7 @@ class _AppShellState extends State<AppShell> {
     await _savePlans();
   }
 
-  SavedPlan _buildPlan(String name) {
+  SavedPlan _buildPlan(String name, {String? parentPlanId}) {
     final createdAt = DateTime.now();
     final result = _scheduleService.buildSchedule(
       tasks: _tasks,
@@ -180,10 +184,97 @@ class _AppShellState extends State<AppShell> {
       id: '${createdAt.microsecondsSinceEpoch}-${_savedPlans.length}',
       name: name,
       createdAt: createdAt,
+      parentPlanId: parentPlanId,
       tasks: _tasks,
       availableTime: _availableTimeBlocks,
       scheduleResult: result,
     );
+  }
+
+  Future<void> _regenerateRemaining() async {
+    final activePlan = _activePlan;
+    if (activePlan == null) return;
+
+    final usesCurrentWorkspace = activePlan.matchesInputs(
+      tasks: _tasks,
+      availableTime: _availableTimeBlocks,
+    );
+    final sourceTasks = usesCurrentWorkspace ? activePlan.tasks : _tasks;
+    final sourceAvailableTime = usesCurrentWorkspace
+        ? activePlan.availableTime
+        : _availableTimeBlocks;
+    final resolvedTasks = <DittoTask>{};
+    final historyTasks = [
+      if (usesCurrentWorkspace) ...activePlan.scheduleResult.historyTasks,
+    ];
+    for (final item
+        in usesCurrentWorkspace
+            ? activePlan.scheduleResult.scheduledTasks
+            : const <ScheduledTask>[]) {
+      if (item.status != ScheduledTaskStatus.planned) {
+        historyTasks.add(item);
+        resolvedTasks.add(item.task);
+      }
+    }
+    final remainingTasks = sourceTasks
+        .where((task) => !resolvedTasks.contains(task))
+        .toList(growable: false);
+    final remainingResult = _scheduleService
+        .buildRemainingSchedule(
+          tasks: remainingTasks,
+          availableTime: sourceAvailableTime,
+          currentMinutes: _currentMinutes,
+        )
+        .copyWith(historyTasks: historyTasks);
+    final createdAt = DateTime.now();
+    final regeneratedPlan = SavedPlan(
+      id: '${createdAt.microsecondsSinceEpoch}-${_savedPlans.length}',
+      name: activePlan.name,
+      createdAt: createdAt,
+      parentPlanId: activePlan.id,
+      rootPlanId: activePlan.rootPlanId,
+      tasks: sourceTasks,
+      availableTime: sourceAvailableTime,
+      scheduleResult: remainingResult,
+    );
+
+    setState(() {
+      _savedPlans.add(regeneratedPlan);
+      _activePlanId = regeneratedPlan.id;
+      _tasks
+        ..clear()
+        ..addAll(regeneratedPlan.tasks);
+      _availableTimeBlocks
+        ..clear()
+        ..addAll(regeneratedPlan.availableTime);
+    });
+    await _saveWorkspaceAndPlans();
+  }
+
+  Future<void> _undoPlanVersion() async {
+    final activePlan = _activePlan;
+    final parentPlanId = activePlan?.parentPlanId;
+    if (parentPlanId == null) return;
+    SavedPlan? parentPlan;
+    for (final plan in _savedPlans) {
+      if (plan.id == parentPlanId) {
+        parentPlan = plan;
+        break;
+      }
+    }
+    if (parentPlan == null) return;
+    final targetPlan = parentPlan;
+
+    setState(() {
+      _activePlanId = targetPlan.id;
+      _tasks
+        ..clear()
+        ..addAll(targetPlan.tasks);
+      _availableTimeBlocks
+        ..clear()
+        ..addAll(targetPlan.availableTime);
+    });
+    await _saveWorkspaceAndPlans();
   }
 
   Future<void> _selectPlan(String planId) async {
@@ -222,6 +313,12 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _deletePlan(SavedPlan plan) async {
+    if (_savedPlans.any((candidate) => candidate.parentPlanId == plan.id)) {
+      _showStorageError(
+        'Delete newer versions first so this plan history stays connected.',
+      );
+      return;
+    }
     SavedPlan? fallbackPlan;
     setState(() {
       _savedPlans.removeWhere((candidate) => candidate.id == plan.id);
@@ -472,6 +569,13 @@ class _AppShellState extends State<AppShell> {
         onRenamePlan: _renamePlan,
         onDeletePlan: _deletePlan,
         onUpdateTaskStatus: _updateScheduledTaskStatus,
+        onRegenerateRemaining: activePlan == null ? null : _regenerateRemaining,
+        onUndoPlanVersion:
+            activePlan?.parentPlanId != null &&
+                _savedPlans.any((plan) => plan.id == activePlan!.parentPlanId)
+            ? _undoPlanVersion
+            : null,
+        currentMinutes: _currentMinutes,
       ),
       TasksScreen(
         tasks: _tasks,
@@ -519,6 +623,11 @@ class _AppShellState extends State<AppShell> {
       ),
     );
   }
+}
+
+int _minutesNow() {
+  final now = DateTime.now();
+  return now.hour * 60 + now.minute;
 }
 
 enum _PlanSwitchChoice { saveAsNew, discard, cancel }

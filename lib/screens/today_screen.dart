@@ -22,6 +22,8 @@ class TodayScreen extends StatelessWidget {
     this.onRenamePlan,
     this.onDeletePlan,
     this.onUpdateTaskStatus,
+    this.onRegenerateRemaining,
+    this.onUndoPlanVersion,
     this.currentMinutes,
     super.key,
   });
@@ -41,6 +43,8 @@ class TodayScreen extends StatelessWidget {
   final ValueChanged<SavedPlan>? onDeletePlan;
   final void Function(ScheduledTask task, ScheduledTaskStatus status)?
   onUpdateTaskStatus;
+  final VoidCallback? onRegenerateRemaining;
+  final VoidCallback? onUndoPlanVersion;
   final int? currentMinutes;
 
   @override
@@ -78,6 +82,8 @@ class TodayScreen extends StatelessWidget {
             onSelectPlan: onSelectPlan,
             onRenamePlan: onRenamePlan,
             onDeletePlan: onDeletePlan,
+            onRegenerateRemaining: onRegenerateRemaining,
+            onUndoPlanVersion: onUndoPlanVersion,
           ),
           if (isActivePlanOutdated) const _OutdatedPlanNotice(),
           Expanded(child: _scheduleBody()),
@@ -130,6 +136,16 @@ class TodayScreen extends StatelessWidget {
       );
     }
     if (result.scheduledTasks.isEmpty) {
+      if (result.historyTasks.isNotEmpty) {
+        return _ScheduleTimeline(
+          items: const [],
+          historyTasks: result.historyTasks,
+          showSummary: false,
+          showNextBadge: false,
+          currentMinutes: currentMinutes ?? _minutesNow(),
+          onUpdateTaskStatus: onUpdateTaskStatus,
+        );
+      }
       return ScreenEmptyState(
         icon: Icons.event_busy_rounded,
         title: 'No tasks fit yet',
@@ -147,6 +163,7 @@ class TodayScreen extends StatelessWidget {
       showNextBadge: true,
       currentMinutes: currentMinutes ?? _minutesNow(),
       onUpdateTaskStatus: onUpdateTaskStatus,
+      historyTasks: result.historyTasks,
     );
   }
 }
@@ -158,6 +175,8 @@ class _SavedPlanHeader extends StatelessWidget {
     required this.onSelectPlan,
     required this.onRenamePlan,
     required this.onDeletePlan,
+    this.onRegenerateRemaining,
+    this.onUndoPlanVersion,
   });
 
   final List<SavedPlan> plans;
@@ -165,6 +184,8 @@ class _SavedPlanHeader extends StatelessWidget {
   final ValueChanged<String>? onSelectPlan;
   final ValueChanged<SavedPlan>? onRenamePlan;
   final ValueChanged<SavedPlan>? onDeletePlan;
+  final VoidCallback? onRegenerateRemaining;
+  final VoidCallback? onUndoPlanVersion;
 
   @override
   Widget build(BuildContext context) {
@@ -204,6 +225,22 @@ class _SavedPlanHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
+          if (onRegenerateRemaining != null)
+            IconButton.filledTonal(
+              key: const Key('regenerate-remaining-button'),
+              tooltip: 'Regenerate remaining plan',
+              onPressed: () => _confirmRegenerate(context),
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          if (onUndoPlanVersion != null)
+            IconButton.filledTonal(
+              key: const Key('undo-plan-version-button'),
+              tooltip: 'Undo regeneration',
+              onPressed: onUndoPlanVersion,
+              icon: const Icon(Icons.undo_rounded),
+            ),
+          if (onRegenerateRemaining != null || onUndoPlanVersion != null)
+            const SizedBox(width: 4),
           IconButton.filledTonal(
             key: const Key('rename-saved-plan'),
             tooltip: 'Rename selected plan',
@@ -227,13 +264,19 @@ class _SavedPlanHeader extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
+    final hasChildVersions = plans.any(
+      (plan) => plan.parentPlanId == activePlan.id,
+    );
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete this plan?'),
-        content: const Text(
-          'Its saved tasks and scheduled times will be removed. If another '
-          'plan remains, Ditto will load it.',
+        content: Text(
+          hasChildVersions
+              ? 'This plan has newer versions. Delete those versions first '
+                    'so the history stays connected.'
+              : 'Its saved tasks and scheduled times will be removed. If '
+                    'another plan remains, Ditto will load it.',
         ),
         actions: [
           TextButton(
@@ -242,13 +285,40 @@ class _SavedPlanHeader extends StatelessWidget {
           ),
           FilledButton(
             key: const Key('confirm-delete-plan'),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: hasChildVersions
+                ? null
+                : () => Navigator.pop(context, true),
             child: const Text('Delete plan'),
           ),
         ],
       ),
     );
     if (shouldDelete == true) onDeletePlan?.call(activePlan);
+  }
+
+  Future<void> _confirmRegenerate(BuildContext context) async {
+    final shouldRegenerate = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Regenerate remaining plan?'),
+        content: const Text(
+          'Completed and skipped tasks will stay recorded. Ditto will create '
+          'a new version and rearrange unfinished work from now onward.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('confirm-regenerate-remaining'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Regenerate'),
+          ),
+        ],
+      ),
+    );
+    if (shouldRegenerate == true) onRegenerateRemaining?.call();
   }
 }
 
@@ -291,7 +361,8 @@ String _planLabel(BuildContext context, SavedPlan plan) {
   final time = localizations.formatTimeOfDay(
     TimeOfDay.fromDateTime(plan.createdAt),
   );
-  return '${plan.name} · $date, $time';
+  final versionLabel = plan.parentPlanId == null ? 'Created' : 'Updated';
+  return '${plan.name} · $versionLabel $date, $time';
 }
 
 class _ImpossibleScheduleView extends StatelessWidget {
@@ -343,6 +414,7 @@ class _ImpossibleScheduleView extends StatelessWidget {
             currentMinutes: currentMinutes,
             shrinkWrap: true,
             onUpdateTaskStatus: onUpdateTaskStatus,
+            historyTasks: result.historyTasks,
           ),
         ],
       ],
@@ -465,6 +537,7 @@ class _ScheduleTimeline extends StatelessWidget {
     required this.showSummary,
     required this.showNextBadge,
     required this.currentMinutes,
+    this.historyTasks = const [],
     this.onUpdateTaskStatus,
     this.shrinkWrap = false,
   });
@@ -473,6 +546,7 @@ class _ScheduleTimeline extends StatelessWidget {
   final bool showSummary;
   final bool showNextBadge;
   final int currentMinutes;
+  final List<ScheduledTask> historyTasks;
   final void Function(ScheduledTask task, ScheduledTaskStatus status)?
   onUpdateTaskStatus;
   final bool shrinkWrap;
@@ -514,6 +588,10 @@ class _ScheduleTimeline extends StatelessWidget {
               : null,
           onUpdateTaskStatus: onUpdateTaskStatus,
         ),
+      if (historyTasks.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        _ScheduleHistory(items: historyTasks),
+      ],
     ];
 
     if (shrinkWrap) {
@@ -572,6 +650,50 @@ class _ScheduleSummary extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ScheduleHistory extends StatelessWidget {
+  const _ScheduleHistory({required this.items});
+
+  final List<ScheduledTask> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      key: const Key('schedule-history'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Text(
+          'Earlier in this plan',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        for (final item in items)
+          Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            color: colorScheme.surfaceContainerHighest,
+            child: ListTile(
+              leading: Icon(
+                item.status == ScheduledTaskStatus.completed
+                    ? Icons.check_circle_rounded
+                    : Icons.skip_next_rounded,
+                color: colorScheme.onSurfaceVariant,
+              ),
+              title: Text(
+                item.task.name,
+                style: const TextStyle(decoration: TextDecoration.lineThrough),
+              ),
+              subtitle: Text(
+                '${item.status == ScheduledTaskStatus.completed ? 'Completed' : 'Skipped'} · '
+                '${_formatTime(context, item.startMinutes)}–${_formatTime(context, item.endMinutes)}',
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

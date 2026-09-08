@@ -49,6 +49,24 @@ class ScheduleService {
     );
   }
 
+  ScheduleBuildResult buildRemainingSchedule({
+    required List<DittoTask> tasks,
+    required List<AvailableTimeBlock> availableTime,
+    required int currentMinutes,
+  }) {
+    final remainingTime = [
+      for (final block in availableTime)
+        if (block.endMinutes > currentMinutes)
+          AvailableTimeBlock(
+            startMinutes: block.startMinutes < currentMinutes
+                ? currentMinutes
+                : block.startMinutes,
+            endMinutes: block.endMinutes,
+          ),
+    ];
+    return buildSchedule(tasks: tasks, availableTime: remainingTime);
+  }
+
   ScheduleBuildResult _buildResult({
     required List<DittoTask> tasks,
     required List<ScheduledTask> schedule,
