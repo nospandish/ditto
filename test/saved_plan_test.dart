@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:ditto/models/available_time_block.dart';
 import 'package:ditto/models/ditto_task.dart';
 import 'package:ditto/models/saved_plan.dart';
+import 'package:ditto/models/scheduled_task.dart';
 import 'package:ditto/services/schedule_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -35,7 +36,13 @@ void main() {
       createdAt: DateTime(2026, 9, 1, 14, 30),
       tasks: tasks,
       availableTime: availableTime,
-      scheduleResult: result,
+      scheduleResult: result.copyWith(
+        scheduledTasks: [
+          result.scheduledTasks.single.copyWith(
+            status: ScheduledTaskStatus.completed,
+          ),
+        ],
+      ),
     );
 
     final decoded = jsonDecode(jsonEncode(original.toJson()));
@@ -56,6 +63,10 @@ void main() {
     );
     expect(restored.scheduleResult.scheduledTasks.single.startMinutes, 9 * 60);
     expect(restored.scheduleResult.scheduledTasks.single.endMinutes, 10 * 60);
+    expect(
+      restored.scheduleResult.scheduledTasks.single.status,
+      ScheduledTaskStatus.completed,
+    );
     expect(
       restored.scheduleResult.unscheduledTasks.single.name,
       'Optional reading',

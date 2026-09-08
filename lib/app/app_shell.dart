@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/available_time_block.dart';
 import '../models/ditto_task.dart';
 import '../models/saved_plan.dart';
+import '../models/scheduled_task.dart';
 import '../screens/add_available_time_screen.dart';
 import '../screens/add_task_screen.dart';
 import '../screens/available_time_screen.dart';
@@ -244,6 +245,32 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Future<void> _updateScheduledTaskStatus(
+    ScheduledTask task,
+    ScheduledTaskStatus status,
+  ) async {
+    final activePlan = _activePlan;
+    if (activePlan == null) return;
+
+    final planIndex = _savedPlans.indexWhere(
+      (plan) => plan.id == activePlan.id,
+    );
+    if (planIndex == -1) return;
+
+    final scheduledTasks = [
+      for (final item in activePlan.scheduleResult.scheduledTasks)
+        identical(item, task) ? item.copyWith(status: status) : item,
+    ];
+    final updatedPlan = activePlan.copyWith(
+      scheduleResult: activePlan.scheduleResult.copyWith(
+        scheduledTasks: scheduledTasks,
+      ),
+    );
+
+    setState(() => _savedPlans[planIndex] = updatedPlan);
+    await _savePlans();
+  }
+
   Future<void> _renamePlan(SavedPlan plan) async {
     final name = await _requestPlanName(
       suggestedName: plan.name,
@@ -421,6 +448,7 @@ class _AppShellState extends State<AppShell> {
         onSelectPlan: _selectPlan,
         onRenamePlan: _renamePlan,
         onDeletePlan: _deletePlan,
+        onUpdateTaskStatus: _updateScheduledTaskStatus,
       ),
       TasksScreen(
         tasks: _tasks,

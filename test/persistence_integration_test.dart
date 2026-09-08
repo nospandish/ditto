@@ -113,6 +113,89 @@ void main() {
     );
   });
 
+  testWidgets(
+    'marks scheduled tasks done or skipped and restores their status',
+    (tester) async {
+      const completedTask = DittoTask(
+        name: 'Finish lab notes',
+        minimumMinutes: 30,
+        maximumMinutes: 30,
+        importance: TaskImportance.mustComplete,
+      );
+      const skippedTask = DittoTask(
+        name: 'Review extra examples',
+        minimumMinutes: 30,
+        maximumMinutes: 30,
+        importance: TaskImportance.optional,
+      );
+      const block = AvailableTimeBlock(
+        startMinutes: 13 * 60,
+        endMinutes: 15 * 60,
+      );
+      SharedPreferences.setMockInitialValues({
+        'ditto.tasks.v1': jsonEncode([
+          completedTask.toJson(),
+          skippedTask.toJson(),
+        ]),
+        'ditto.available_time.v1': jsonEncode([block.toJson()]),
+      });
+
+      await tester.pumpWidget(const DittoApp());
+      await tester.pumpAndSettle();
+      await generatePlan(tester, 'Status plan');
+
+      await tester.tap(
+        find.byKey(
+          const ValueKey('status-menu-schedule-task-Finish lab notes'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('status-option-done-Finish lab notes')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(
+          const ValueKey('status-menu-schedule-task-Review extra examples'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('status-option-skip-Review extra examples')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Skip this task?'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('confirm-skip-schedule-task')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Completed'), findsOneWidget);
+      expect(find.text('Skipped'), findsOneWidget);
+
+      final preferences = await SharedPreferences.getInstance();
+      final storedPlans = preferences.getString('ditto.saved_plans.v1');
+      expect(storedPlans, contains('"status":"completed"'));
+      expect(storedPlans, contains('"status":"skipped"'));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const DittoApp());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Completed'), findsOneWidget);
+      expect(find.text('Skipped'), findsOneWidget);
+      await tester.tap(
+        find.byKey(
+          const ValueKey('status-menu-schedule-task-Finish lab notes'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('undo-schedule-task-Finish lab notes')),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('keeps an invalid schedule until a valid regeneration', (
     tester,
   ) async {

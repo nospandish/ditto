@@ -31,6 +31,16 @@ class ScheduleBuildResult {
   final int totalAvailableMinutes;
   final int mustCompleteMinimumMinutes;
 
+  ScheduleBuildResult copyWith({List<ScheduledTask>? scheduledTasks}) {
+    return ScheduleBuildResult(
+      scheduledTasks: scheduledTasks ?? this.scheduledTasks,
+      unscheduledTasks: unscheduledTasks,
+      issues: issues,
+      totalAvailableMinutes: totalAvailableMinutes,
+      mustCompleteMinimumMinutes: mustCompleteMinimumMinutes,
+    );
+  }
+
   bool get hasImpossibleMustCompleteTasks => issues.isNotEmpty;
 
   bool get isSuccessful => !hasImpossibleMustCompleteTasks;

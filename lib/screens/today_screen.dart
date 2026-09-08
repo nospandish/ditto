@@ -21,6 +21,7 @@ class TodayScreen extends StatelessWidget {
     this.onSelectPlan,
     this.onRenamePlan,
     this.onDeletePlan,
+    this.onUpdateTaskStatus,
     this.currentMinutes,
     super.key,
   });
@@ -38,6 +39,8 @@ class TodayScreen extends StatelessWidget {
   final ValueChanged<String>? onSelectPlan;
   final ValueChanged<SavedPlan>? onRenamePlan;
   final ValueChanged<SavedPlan>? onDeletePlan;
+  final void Function(ScheduledTask task, ScheduledTaskStatus status)?
+  onUpdateTaskStatus;
   final int? currentMinutes;
 
   @override
@@ -123,6 +126,7 @@ class TodayScreen extends StatelessWidget {
         currentMinutes: currentMinutes ?? _minutesNow(),
         onReviewTasks: onReviewTasks,
         onAddAvailableTime: onAddAvailableTime,
+        onUpdateTaskStatus: onUpdateTaskStatus,
       );
     }
     if (result.scheduledTasks.isEmpty) {
@@ -142,6 +146,7 @@ class TodayScreen extends StatelessWidget {
       showSummary: true,
       showNextBadge: true,
       currentMinutes: currentMinutes ?? _minutesNow(),
+      onUpdateTaskStatus: onUpdateTaskStatus,
     );
   }
 }
@@ -295,12 +300,15 @@ class _ImpossibleScheduleView extends StatelessWidget {
     required this.currentMinutes,
     required this.onReviewTasks,
     required this.onAddAvailableTime,
+    this.onUpdateTaskStatus,
   });
 
   final ScheduleBuildResult result;
   final int currentMinutes;
   final VoidCallback onReviewTasks;
   final VoidCallback onAddAvailableTime;
+  final void Function(ScheduledTask task, ScheduledTaskStatus status)?
+  onUpdateTaskStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -334,6 +342,7 @@ class _ImpossibleScheduleView extends StatelessWidget {
             showNextBadge: false,
             currentMinutes: currentMinutes,
             shrinkWrap: true,
+            onUpdateTaskStatus: onUpdateTaskStatus,
           ),
         ],
       ],
@@ -456,6 +465,7 @@ class _ScheduleTimeline extends StatelessWidget {
     required this.showSummary,
     required this.showNextBadge,
     required this.currentMinutes,
+    this.onUpdateTaskStatus,
     this.shrinkWrap = false,
   });
 
@@ -463,6 +473,8 @@ class _ScheduleTimeline extends StatelessWidget {
   final bool showSummary;
   final bool showNextBadge;
   final int currentMinutes;
+  final void Function(ScheduledTask task, ScheduledTaskStatus status)?
+  onUpdateTaskStatus;
   final bool shrinkWrap;
 
   @override
@@ -491,13 +503,16 @@ class _ScheduleTimeline extends StatelessWidget {
           isFirst: index == 0,
           isLast: index == items.length - 1,
           state: states[index],
-          badgeLabel: !showNextBadge
+          badgeLabel:
+              !showNextBadge ||
+                  items[index].status != ScheduledTaskStatus.planned
               ? null
               : index == currentIndex
               ? 'Now'
               : index == nextIndex
               ? 'Next'
               : null,
+          onUpdateTaskStatus: onUpdateTaskStatus,
         ),
     ];
 
@@ -568,6 +583,7 @@ class _TimelineItem extends StatelessWidget {
     required this.isLast,
     required this.state,
     required this.badgeLabel,
+    this.onUpdateTaskStatus,
   });
 
   final ScheduledTask item;
@@ -575,6 +591,8 @@ class _TimelineItem extends StatelessWidget {
   final bool isLast;
   final _TimelineTaskState state;
   final String? badgeLabel;
+  final void Function(ScheduledTask task, ScheduledTaskStatus status)?
+  onUpdateTaskStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -598,6 +616,16 @@ class _TimelineItem extends StatelessWidget {
     final titleColor = state == _TimelineTaskState.previous
         ? colorScheme.onSurfaceVariant
         : colorScheme.onSurface;
+    final isCompleted = item.status == ScheduledTaskStatus.completed;
+    final isSkipped = item.status == ScheduledTaskStatus.skipped;
+    final isResolved = isCompleted || isSkipped;
+    final effectiveTitleColor = isResolved
+        ? colorScheme.onSurfaceVariant
+        : titleColor;
+    final effectiveStateColor = isResolved ? colorScheme.outline : stateColor;
+    final effectiveCardColor = isResolved
+        ? colorScheme.surfaceContainerHighest
+        : cardColor;
 
     return IntrinsicHeight(
       child: Row(
@@ -655,7 +683,7 @@ class _TimelineItem extends StatelessWidget {
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: stateColor,
+                      color: effectiveStateColor,
                       shape: BoxShape.circle,
                       border: Border.all(color: colorScheme.surface, width: 2),
                     ),
@@ -671,13 +699,13 @@ class _TimelineItem extends StatelessWidget {
               child: Card(
                 key: ValueKey('schedule-task-${item.task.name}'),
                 margin: EdgeInsets.zero,
-                color: cardColor,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: state == _TimelineTaskState.current
+                  side: state == _TimelineTaskState.current && !isResolved
                       ? const BorderSide(color: currentColor, width: 1.5)
                       : BorderSide.none,
                 ),
+                color: effectiveCardColor,
                 child: Padding(
                   padding: const EdgeInsets.all(14),
                   child: Column(
@@ -690,8 +718,11 @@ class _TimelineItem extends StatelessWidget {
                               item.task.name,
                               style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
-                                    color: titleColor,
+                                    color: effectiveTitleColor,
                                     fontWeight: FontWeight.w700,
+                                    decoration: isResolved
+                                        ? TextDecoration.lineThrough
+                                        : null,
                                   ),
                             ),
                           ),
@@ -707,14 +738,16 @@ class _TimelineItem extends StatelessWidget {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: stateColor.withValues(alpha: 0.14),
+                                color: effectiveStateColor.withValues(
+                                  alpha: 0.14,
+                                ),
                                 borderRadius: BorderRadius.circular(99),
                               ),
                               child: Text(
                                 badgeLabel!,
                                 style: Theme.of(context).textTheme.labelSmall
                                     ?.copyWith(
-                                      color: stateColor,
+                                      color: effectiveStateColor,
                                       fontWeight: FontWeight.w700,
                                     ),
                               ),
@@ -732,12 +765,131 @@ class _TimelineItem extends StatelessWidget {
                           ),
                           _TaskDetailChip(
                             label: item.task.importance.label,
-                            color: state == _TimelineTaskState.previous
+                            color:
+                                isResolved ||
+                                    state == _TimelineTaskState.previous
                                 ? colorScheme.outline
                                 : priorityColor,
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      if (isResolved)
+                        Row(
+                          children: [
+                            Icon(
+                              isCompleted
+                                  ? Icons.check_circle_rounded
+                                  : Icons.skip_next_rounded,
+                              size: 18,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isCompleted ? 'Completed' : 'Skipped',
+                              style: Theme.of(context).textTheme.labelLarge
+                                  ?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                            const Spacer(),
+                            if (onUpdateTaskStatus != null)
+                              PopupMenuButton<ScheduledTaskStatus>(
+                                key: ValueKey(
+                                  'status-menu-schedule-task-${item.task.name}',
+                                ),
+                                tooltip: 'Change task status',
+                                onSelected: (status) {
+                                  onUpdateTaskStatus!(item, status);
+                                },
+                                itemBuilder: (context) => [
+                                  PopupMenuItem(
+                                    key: ValueKey(
+                                      'undo-schedule-task-${item.task.name}',
+                                    ),
+                                    value: ScheduledTaskStatus.planned,
+                                    child: const Text('Undo status'),
+                                  ),
+                                ],
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text('Change'),
+                                      Icon(Icons.arrow_drop_down_rounded),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        )
+                      else if (onUpdateTaskStatus != null)
+                        PopupMenuButton<ScheduledTaskStatus>(
+                          key: ValueKey(
+                            'status-menu-schedule-task-${item.task.name}',
+                          ),
+                          tooltip: 'Update task status',
+                          onSelected: (status) {
+                            if (status == ScheduledTaskStatus.skipped) {
+                              _confirmSkip(context);
+                            } else {
+                              onUpdateTaskStatus!(item, status);
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              key: ValueKey(
+                                'status-option-done-${item.task.name}',
+                              ),
+                              value: ScheduledTaskStatus.completed,
+                              child: const Text('Mark as done'),
+                            ),
+                            PopupMenuItem(
+                              key: ValueKey(
+                                'status-option-skip-${item.task.name}',
+                              ),
+                              value: ScheduledTaskStatus.skipped,
+                              child: const Text('Skip task'),
+                            ),
+                          ],
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: colorScheme.outline),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Update status',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelLarge
+                                        ?.copyWith(
+                                          color: colorScheme.primary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.arrow_drop_down_rounded,
+                                    color: colorScheme.primary,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -747,6 +899,32 @@ class _TimelineItem extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmSkip(BuildContext context) async {
+    final shouldSkip = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Skip this task?'),
+        content: const Text(
+          'It will stay visible in this plan but will not count as completed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('confirm-skip-schedule-task'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Skip task'),
+          ),
+        ],
+      ),
+    );
+    if (shouldSkip == true && context.mounted) {
+      onUpdateTaskStatus?.call(item, ScheduledTaskStatus.skipped);
+    }
   }
 }
 

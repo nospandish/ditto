@@ -21,14 +21,14 @@ class SavedPlan {
   final List<AvailableTimeBlock> availableTime;
   final ScheduleBuildResult scheduleResult;
 
-  SavedPlan copyWith({String? name}) {
+  SavedPlan copyWith({String? name, ScheduleBuildResult? scheduleResult}) {
     return SavedPlan(
       id: id,
       name: name ?? this.name,
       createdAt: createdAt,
       tasks: tasks,
       availableTime: availableTime,
-      scheduleResult: scheduleResult,
+      scheduleResult: scheduleResult ?? this.scheduleResult,
     );
   }
 
@@ -73,6 +73,7 @@ class SavedPlan {
             'taskIndex': taskIndex(item.task),
             'startMinutes': item.startMinutes,
             'endMinutes': item.endMinutes,
+            'status': item.status.name,
           },
       ],
       'unscheduledTaskIndexes': [
@@ -119,11 +120,20 @@ class SavedPlan {
 
     final scheduledTasks = [
       for (final value in scheduledValues)
-        ScheduledTask(
-          task: taskAt((value as Map)['taskIndex']),
-          startMinutes: value['startMinutes'] as int,
-          endMinutes: value['endMinutes'] as int,
-        ),
+        () {
+          final scheduledValue = value as Map;
+          final statusValue = scheduledValue['status'];
+          final status = statusValue is String
+              ? ScheduledTaskStatus.values.asNameMap()[statusValue] ??
+                    ScheduledTaskStatus.planned
+              : ScheduledTaskStatus.planned;
+          return ScheduledTask(
+            task: taskAt(scheduledValue['taskIndex']),
+            startMinutes: scheduledValue['startMinutes'] as int,
+            endMinutes: scheduledValue['endMinutes'] as int,
+            status: status,
+          );
+        }(),
     ];
     final unscheduledTasks = [
       for (final value in unscheduledValues) taskAt(value),
