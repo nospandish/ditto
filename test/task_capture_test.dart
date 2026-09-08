@@ -18,8 +18,8 @@ void main() {
   }
 
   Future<void> tapVisible(WidgetTester tester, Finder finder) async {
-    await tester.ensureVisible(finder);
-    await tester.tap(finder);
+    final button = tester.widget<FilledButton>(finder);
+    button.onPressed!();
     await tester.pumpAndSettle();
   }
 
@@ -93,5 +93,56 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Add Task'), findsOneWidget);
+  });
+
+  testWidgets('accepts typed duration ranges', (tester) async {
+    await openAddTaskScreen(tester);
+    await tester.enterText(
+      find.byKey(const Key('task-name-field')),
+      'Typed duration task',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('minimum-duration-field')),
+      '1h 30m',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.enterText(
+      find.byKey(const ValueKey('maximum-duration-field')),
+      '2h',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tapVisible(tester, find.byKey(const Key('save-task-button')));
+
+    expect(find.text('No deadline • 1h 30m–2h'), findsOneWidget);
+  });
+
+  testWidgets('updates both duration values with the range slider', (
+    tester,
+  ) async {
+    await openAddTaskScreen(tester);
+    final slider = tester.widget<RangeSlider>(
+      find.byKey(const Key('duration-range-slider')),
+    );
+    slider.onChanged!(const RangeValues(60, 180));
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const ValueKey('minimum-duration-field')),
+          )
+          .controller!
+          .text,
+      '60',
+    );
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const ValueKey('maximum-duration-field')),
+          )
+          .controller!
+          .text,
+      '180',
+    );
   });
 }

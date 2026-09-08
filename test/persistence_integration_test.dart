@@ -56,8 +56,7 @@ void main() {
       'Persist this task',
     );
     final saveButton = find.byKey(const Key('save-task-button'));
-    await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
+    tester.widget<FilledButton>(saveButton).onPressed!();
     await tester.pumpAndSettle();
     final preferences = await SharedPreferences.getInstance();
     final stored = preferences.getString('ditto.tasks.v1');
@@ -197,8 +196,7 @@ void main() {
       'Edited scheduled task',
     );
     final saveButton = find.byKey(const Key('save-task-button'));
-    await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
+    tester.widget<FilledButton>(saveButton).onPressed!();
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Time'));
@@ -249,8 +247,7 @@ void main() {
       find.byKey(const Key('task-name-field')),
       'Temporary unsaved setup',
     );
-    await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
+    tester.widget<FilledButton>(saveButton).onPressed!();
     await tester.pumpAndSettle();
     await tester.tap(find.text('Today'));
     await tester.pumpAndSettle();

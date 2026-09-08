@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/ditto_task.dart';
 
@@ -18,6 +19,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   late int _minimumMinutes;
   late int _maximumMinutes;
   late TaskImportance _importance;
+  late final TextEditingController _minimumController;
+  late final TextEditingController _maximumController;
   String? _durationError;
 
   bool get _isEditing => widget.initialTask != null;
@@ -31,11 +34,15 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     _minimumMinutes = task?.minimumMinutes ?? 30;
     _maximumMinutes = task?.maximumMinutes ?? 60;
     _importance = task?.importance ?? TaskImportance.mustComplete;
+    _minimumController = TextEditingController(text: '$_minimumMinutes');
+    _maximumController = TextEditingController(text: '$_maximumMinutes');
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _minimumController.dispose();
+    _maximumController.dispose();
     super.dispose();
   }
 
@@ -55,6 +62,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   }
 
   void _saveTask() {
+    _commitTypedDurations();
     final formIsValid = _formKey.currentState?.validate() ?? false;
     final durationsAreValid = _maximumMinutes >= _minimumMinutes;
 
@@ -75,6 +83,30 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         importance: _importance,
       ),
     );
+  }
+
+  void _commitTypedDurations() {
+    final minimum = _parseDuration(_minimumController.text);
+    final maximum = _parseDuration(_maximumController.text);
+    setState(() {
+      if (minimum != null) _minimumMinutes = minimum;
+      if (maximum != null) _maximumMinutes = maximum;
+      _syncDurationControllers();
+    });
+  }
+
+  void _setDurations({int? minimum, int? maximum}) {
+    setState(() {
+      _minimumMinutes = minimum ?? _minimumMinutes;
+      _maximumMinutes = maximum ?? _maximumMinutes;
+      _syncDurationControllers();
+      _durationError = null;
+    });
+  }
+
+  void _syncDurationControllers() {
+    _minimumController.text = '$_minimumMinutes';
+    _maximumController.text = '$_maximumMinutes';
   }
 
   @override
@@ -120,38 +152,19 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
               const SizedBox(height: 24),
               Text('Time needed', style: textTheme.titleSmall),
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _DurationStepper(
-                      label: 'Minimum',
-                      minutes: _minimumMinutes,
-                      decreaseKey: const Key('decrease-minimum-duration'),
-                      increaseKey: const Key('increase-minimum-duration'),
-                      onChanged: (minutes) {
-                        setState(() {
-                          _minimumMinutes = minutes;
-                          _durationError = null;
-                        });
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _DurationStepper(
-                      label: 'Maximum',
-                      minutes: _maximumMinutes,
-                      decreaseKey: const Key('decrease-maximum-duration'),
-                      increaseKey: const Key('increase-maximum-duration'),
-                      onChanged: (minutes) {
-                        setState(() {
-                          _maximumMinutes = minutes;
-                          _durationError = null;
-                        });
-                      },
-                    ),
-                  ),
-                ],
+              _DurationRangeEditor(
+                minimumMinutes: _minimumMinutes,
+                maximumMinutes: _maximumMinutes,
+                minimumController: _minimumController,
+                maximumController: _maximumController,
+                onSliderChanged: (values) => _setDurations(
+                  minimum: values.start.round(),
+                  maximum: values.end.round(),
+                ),
+                onTypedChanged: () => setState(() => _durationError = null),
+                onCommitTyped: _commitTypedDurations,
+                onStep: (minimum, maximum) =>
+                    _setDurations(minimum: minimum, maximum: maximum),
               ),
               if (_durationError != null) ...[
                 const SizedBox(height: 8),
@@ -235,58 +248,153 @@ class _DeadlineField extends StatelessWidget {
   }
 }
 
-class _DurationStepper extends StatelessWidget {
-  const _DurationStepper({
-    required this.label,
-    required this.minutes,
-    required this.decreaseKey,
-    required this.increaseKey,
-    required this.onChanged,
+class _DurationRangeEditor extends StatelessWidget {
+  const _DurationRangeEditor({
+    required this.minimumMinutes,
+    required this.maximumMinutes,
+    required this.minimumController,
+    required this.maximumController,
+    required this.onSliderChanged,
+    required this.onTypedChanged,
+    required this.onCommitTyped,
+    required this.onStep,
   });
 
-  final String label;
-  final int minutes;
-  final Key decreaseKey;
-  final Key increaseKey;
-  final ValueChanged<int> onChanged;
+  final int minimumMinutes;
+  final int maximumMinutes;
+  final TextEditingController minimumController;
+  final TextEditingController maximumController;
+  final ValueChanged<RangeValues> onSliderChanged;
+  final VoidCallback onTypedChanged;
+  final VoidCallback onCommitTyped;
+  final void Function(int? minimum, int? maximum) onStep;
 
   @override
   Widget build(BuildContext context) {
+    final sliderMinimum = minimumMinutes.toDouble().clamp(15, 480).toDouble();
+    final sliderMaximum = maximumMinutes
+        .toDouble()
+        .clamp(sliderMinimum, 480)
+        .toDouble();
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
+      key: const Key('duration-range-editor'),
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
       decoration: BoxDecoration(
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 4),
+          Text(
+            'Drag to set a range, or type exact minutes.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          RangeSlider(
+            key: const Key('duration-range-slider'),
+            min: 15,
+            max: 480,
+            divisions: 31,
+            labels: RangeLabels(
+              _formatDuration(minimumMinutes),
+              _formatDuration(maximumMinutes),
+            ),
+            values: RangeValues(sliderMinimum, sliderMaximum),
+            onChanged: onSliderChanged,
+          ),
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              IconButton(
-                key: decreaseKey,
-                tooltip: 'Decrease $label time',
-                onPressed: minutes > 15 ? () => onChanged(minutes - 15) : null,
-                icon: const Icon(Icons.remove_rounded),
-              ),
               Expanded(
-                child: Text(
-                  _formatDuration(minutes),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
+                child: _DurationInput(
+                  key: const Key('minimum-duration-input'),
+                  label: 'Minimum',
+                  controller: minimumController,
+                  decreaseKey: const Key('decrease-minimum-duration'),
+                  increaseKey: const Key('increase-minimum-duration'),
+                  onChanged: onTypedChanged,
+                  onSubmitted: onCommitTyped,
+                  onDecrease: minimumMinutes > 15
+                      ? () => onStep(minimumMinutes - 15, null)
+                      : null,
+                  onIncrease: () => onStep(minimumMinutes + 15, null),
                 ),
               ),
-              IconButton(
-                key: increaseKey,
-                tooltip: 'Increase $label time',
-                onPressed: () => onChanged(minutes + 15),
-                icon: const Icon(Icons.add_rounded),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _DurationInput(
+                  key: const Key('maximum-duration-input'),
+                  label: 'Maximum',
+                  controller: maximumController,
+                  decreaseKey: const Key('decrease-maximum-duration'),
+                  increaseKey: const Key('increase-maximum-duration'),
+                  onChanged: onTypedChanged,
+                  onSubmitted: onCommitTyped,
+                  onDecrease: maximumMinutes > 15
+                      ? () => onStep(null, maximumMinutes - 15)
+                      : null,
+                  onIncrease: () => onStep(null, maximumMinutes + 15),
+                ),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DurationInput extends StatelessWidget {
+  const _DurationInput({
+    super.key,
+    required this.label,
+    required this.controller,
+    required this.decreaseKey,
+    required this.increaseKey,
+    required this.onChanged,
+    required this.onSubmitted,
+    required this.onDecrease,
+    required this.onIncrease,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final Key decreaseKey;
+  final Key increaseKey;
+  final VoidCallback onChanged;
+  final VoidCallback onSubmitted;
+  final VoidCallback? onDecrease;
+  final VoidCallback onIncrease;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      key: ValueKey('${label.toLowerCase()}-duration-field'),
+      keyboardType: TextInputType.text,
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9hm ]'))],
+      textInputAction: TextInputAction.done,
+      onChanged: (_) => onChanged(),
+      onSubmitted: (_) => onSubmitted(),
+      onEditingComplete: onSubmitted,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: 'e.g. 90 or 1h 30m',
+        suffixText: 'min',
+        prefixIcon: IconButton(
+          key: decreaseKey,
+          tooltip: 'Decrease $label time',
+          onPressed: onDecrease,
+          icon: const Icon(Icons.remove_rounded),
+        ),
+        suffixIcon: IconButton(
+          key: increaseKey,
+          tooltip: 'Increase $label time',
+          onPressed: onIncrease,
+          icon: const Icon(Icons.add_rounded),
+        ),
       ),
     );
   }
@@ -298,6 +406,23 @@ String _formatDuration(int minutes) {
   final remainingMinutes = minutes % 60;
   if (remainingMinutes == 0) return '${hours}h';
   return '${hours}h ${remainingMinutes}m';
+}
+
+int? _parseDuration(String value) {
+  final normalized = value.trim().toLowerCase();
+  if (normalized.isEmpty) return null;
+  final minutesOnly = int.tryParse(normalized);
+  if (minutesOnly != null) return minutesOnly.clamp(15, 480);
+
+  final match = RegExp(
+    r'^(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?$',
+  ).firstMatch(normalized);
+  if (match == null || (match.group(1) == null && match.group(2) == null)) {
+    return null;
+  }
+  final hours = int.tryParse(match.group(1) ?? '0') ?? 0;
+  final minutes = int.tryParse(match.group(2) ?? '0') ?? 0;
+  return (hours * 60 + minutes).clamp(15, 480);
 }
 
 String _formatDate(DateTime date) {
