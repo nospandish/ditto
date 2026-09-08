@@ -1,4 +1,5 @@
 import 'package:ditto/app/app.dart';
+import 'package:ditto/screens/add_task_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +19,10 @@ void main() {
   }
 
   Future<void> tapVisible(WidgetTester tester, Finder finder) async {
+    if (!tester.any(finder)) {
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pump();
+    }
     final button = tester.widget<FilledButton>(finder);
     button.onPressed!();
     await tester.pumpAndSettle();
@@ -143,6 +148,25 @@ void main() {
           .controller!
           .text,
       '180',
+    );
+  });
+
+  testWidgets('offers common task names in a dropdown', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AddTaskScreen(commonTaskNames: const ['Homework', 'Read a book']),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('common-task-dropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Homework').last);
+
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const Key('task-name-field')))
+          .controller!
+          .text,
+      'Homework',
     );
   });
 }

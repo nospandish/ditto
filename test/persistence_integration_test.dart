@@ -56,6 +56,10 @@ void main() {
       'Persist this task',
     );
     final saveButton = find.byKey(const Key('save-task-button'));
+    if (!tester.any(saveButton)) {
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pump();
+    }
     tester.widget<FilledButton>(saveButton).onPressed!();
     await tester.pumpAndSettle();
     final preferences = await SharedPreferences.getInstance();
@@ -279,6 +283,10 @@ void main() {
       'Edited scheduled task',
     );
     final saveButton = find.byKey(const Key('save-task-button'));
+    if (!tester.any(saveButton)) {
+      await tester.drag(find.byType(ListView), const Offset(0, -500));
+      await tester.pump();
+    }
     tester.widget<FilledButton>(saveButton).onPressed!();
     await tester.pumpAndSettle();
 
@@ -330,6 +338,10 @@ void main() {
       find.byKey(const Key('task-name-field')),
       'Temporary unsaved setup',
     );
+    if (!tester.any(saveButton)) {
+      await tester.drag(find.byType(ListView), const Offset(0, -500));
+      await tester.pump();
+    }
     tester.widget<FilledButton>(saveButton).onPressed!();
     await tester.pumpAndSettle();
     await tester.tap(find.text('Today'));

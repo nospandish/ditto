@@ -346,7 +346,10 @@ class _AppShellState extends State<AppShell> {
   Future<void> _openTaskEditor([DittoTask? existingTask]) async {
     final editedTask = await Navigator.of(context).push<DittoTask>(
       MaterialPageRoute(
-        builder: (context) => AddTaskScreen(initialTask: existingTask),
+        builder: (context) => AddTaskScreen(
+          initialTask: existingTask,
+          commonTaskNames: _commonTaskNames,
+        ),
       ),
     );
 
@@ -362,6 +365,26 @@ class _AppShellState extends State<AppShell> {
       if (taskIndex != -1) _tasks[taskIndex] = editedTask;
     });
     await _saveTasks();
+  }
+
+  List<String> get _commonTaskNames {
+    final counts = <String, int>{};
+    final displayNames = <String, String>{};
+    for (final task in _tasks) {
+      final normalized = task.name.trim().toLowerCase();
+      if (normalized.isEmpty) continue;
+      counts[normalized] = (counts[normalized] ?? 0) + 1;
+      displayNames.putIfAbsent(normalized, () => task.name.trim());
+    }
+
+    final names = counts.keys.toList()
+      ..sort((first, second) {
+        final countComparison = counts[second]!.compareTo(counts[first]!);
+        return countComparison != 0
+            ? countComparison
+            : displayNames[first]!.compareTo(displayNames[second]!);
+      });
+    return [for (final name in names.take(8)) displayNames[name]!];
   }
 
   void _deleteTask(DittoTask task) {

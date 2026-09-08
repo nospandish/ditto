@@ -4,9 +4,14 @@ import 'package:flutter/services.dart';
 import '../models/ditto_task.dart';
 
 class AddTaskScreen extends StatefulWidget {
-  const AddTaskScreen({this.initialTask, super.key});
+  const AddTaskScreen({
+    this.initialTask,
+    this.commonTaskNames = const [],
+    super.key,
+  });
 
   final DittoTask? initialTask;
+  final List<String> commonTaskNames;
 
   @override
   State<AddTaskScreen> createState() => _AddTaskScreenState();
@@ -139,6 +144,29 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                   return null;
                 },
               ),
+              if (widget.commonTaskNames.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  key: const Key('common-task-dropdown'),
+                  decoration: const InputDecoration(
+                    labelText: 'Common task',
+                    prefixIcon: Icon(Icons.history_rounded),
+                  ),
+                  hint: const Text('Choose a task to reuse'),
+                  items: [
+                    for (final taskName in widget.commonTaskNames)
+                      DropdownMenuItem(value: taskName, child: Text(taskName)),
+                  ],
+                  onChanged: (taskName) {
+                    if (taskName == null) return;
+                    _nameController
+                      ..text = taskName
+                      ..selection = TextSelection.collapsed(
+                        offset: taskName.length,
+                      );
+                  },
+                ),
+              ],
               const SizedBox(height: 24),
               Text('Deadline', style: textTheme.titleSmall),
               const SizedBox(height: 8),
