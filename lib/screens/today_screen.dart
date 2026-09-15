@@ -312,20 +312,11 @@ class _SavedPlanHeader extends StatelessWidget {
   }
 
   Future<void> _showHistory(BuildContext context) {
-    final plansByRoot = <String, List<SavedPlan>>{};
-    for (final plan in plans) {
-      plansByRoot.putIfAbsent(plan.rootPlanId, () => []).add(plan);
-    }
-    final groups = plansByRoot.values.toList()
-      ..sort(
-        (first, second) =>
-            first.first.createdAt.compareTo(second.first.createdAt),
-      );
-    for (final group in groups) {
-      group.sort(
-        (first, second) => first.createdAt.compareTo(second.createdAt),
-      );
-    }
+    final versions =
+        plans.where((plan) => plan.rootPlanId == activePlan.rootPlanId).toList()
+          ..sort(
+            (first, second) => first.createdAt.compareTo(second.createdAt),
+          );
 
     return showModalBottomSheet<void>(
       context: context,
@@ -339,7 +330,7 @@ class _SavedPlanHeader extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
                 child: Text(
-                  'Plan history',
+                  'Plan history · ${activePlan.name}',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
               ),
@@ -347,33 +338,24 @@ class _SavedPlanHeader extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
                   children: [
-                    for (final group in groups) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
-                        child: Text(
-                          group.first.name,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
+                    for (var index = 0; index < versions.length; index++)
+                      _HistoryPlanTile(
+                        plan: versions[index],
+                        isCurrent: versions[index].id == activePlan.id,
+                        isOriginal: index == 0,
+                        onRename: onRenamePlanVersion == null
+                            ? null
+                            : () {
+                                Navigator.pop(context);
+                                onRenamePlanVersion!(versions[index]);
+                              },
+                        onTap: () {
+                          Navigator.pop(context);
+                          if (versions[index].id != activePlan.id) {
+                            onSelectPlan?.call(versions[index].id);
+                          }
+                        },
                       ),
-                      for (var index = 0; index < group.length; index++)
-                        _HistoryPlanTile(
-                          plan: group[index],
-                          isCurrent: group[index].id == activePlan.id,
-                          isOriginal: index == 0,
-                          onRename: onRenamePlanVersion == null
-                              ? null
-                              : () {
-                                  Navigator.pop(context);
-                                  onRenamePlanVersion!(group[index]);
-                                },
-                          onTap: () {
-                            Navigator.pop(context);
-                            if (group[index].id != activePlan.id) {
-                              onSelectPlan?.call(group[index].id);
-                            }
-                          },
-                        ),
-                    ],
                   ],
                 ),
               ),

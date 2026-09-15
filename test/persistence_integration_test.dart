@@ -260,7 +260,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('plan-history-button')));
     await tester.pumpAndSettle();
-    expect(find.text('Plan history'), findsOneWidget);
+    expect(find.textContaining('Plan history'), findsOneWidget);
     expect(find.text('Original plan'), findsOneWidget);
     expect(find.text('Regenerated version'), findsOneWidget);
     await tester.tap(
@@ -288,6 +288,34 @@ void main() {
     expect(find.byKey(const Key('undo-plan-version-button')), findsNothing);
     expect(find.text('Earlier in this plan'), findsNothing);
     expect(find.text('Finish first task'), findsOneWidget);
+  });
+
+  testWidgets('history only shows versions for the selected plan', (
+    tester,
+  ) async {
+    const task = DittoTask(
+      name: 'Plan-specific task',
+      minimumMinutes: 30,
+      maximumMinutes: 30,
+      importance: TaskImportance.canWait,
+    );
+    const block = AvailableTimeBlock(startMinutes: 9 * 60, endMinutes: 10 * 60);
+    SharedPreferences.setMockInitialValues({
+      'ditto.tasks.v1': jsonEncode([task.toJson()]),
+      'ditto.available_time.v1': jsonEncode([block.toJson()]),
+    });
+
+    await tester.pumpWidget(const DittoApp());
+    await tester.pumpAndSettle();
+    await generatePlan(tester, 'First plan');
+    await generatePlan(tester, 'Second plan');
+
+    await tester.tap(find.byKey(const Key('plan-history-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Plan history · Second plan'), findsOneWidget);
+    expect(find.text('Original plan'), findsOneWidget);
+    expect(find.text('First plan'), findsNothing);
   });
 
   testWidgets('keeps an invalid schedule until a valid regeneration', (
