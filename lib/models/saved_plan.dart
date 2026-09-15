@@ -12,6 +12,7 @@ class SavedPlan {
     required List<AvailableTimeBlock> availableTime,
     required this.scheduleResult,
     this.parentPlanId,
+    this.versionName,
     String? rootPlanId,
   }) : tasks = List.unmodifiable(tasks),
        availableTime = List.unmodifiable(availableTime),
@@ -21,12 +22,17 @@ class SavedPlan {
   final String name;
   final DateTime createdAt;
   final String? parentPlanId;
+  final String? versionName;
   final String rootPlanId;
   final List<DittoTask> tasks;
   final List<AvailableTimeBlock> availableTime;
   final ScheduleBuildResult scheduleResult;
 
-  SavedPlan copyWith({String? name, ScheduleBuildResult? scheduleResult}) {
+  SavedPlan copyWith({
+    String? name,
+    String? versionName,
+    ScheduleBuildResult? scheduleResult,
+  }) {
     return SavedPlan(
       id: id,
       name: name ?? this.name,
@@ -35,6 +41,7 @@ class SavedPlan {
       availableTime: availableTime,
       scheduleResult: scheduleResult ?? this.scheduleResult,
       parentPlanId: parentPlanId,
+      versionName: versionName ?? this.versionName,
       rootPlanId: rootPlanId,
     );
   }
@@ -73,6 +80,7 @@ class SavedPlan {
       'name': name,
       'createdAt': createdAt.toIso8601String(),
       'parentPlanId': parentPlanId,
+      'versionName': versionName,
       'rootPlanId': rootPlanId,
       'tasks': tasks.map((task) => task.toJson()).toList(),
       'availableTime': availableTime.map((block) => block.toJson()).toList(),
@@ -187,6 +195,7 @@ class SavedPlan {
       name: json['name'] as String? ?? 'Saved plan',
       createdAt: DateTime.parse(json['createdAt'] as String),
       parentPlanId: json['parentPlanId'] as String?,
+      versionName: json['versionName'] as String?,
       rootPlanId: json['rootPlanId'] as String? ?? json['id'] as String,
       tasks: tasks,
       availableTime: availableTime,

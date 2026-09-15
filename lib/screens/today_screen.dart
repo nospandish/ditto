@@ -20,6 +20,7 @@ class TodayScreen extends StatelessWidget {
     this.isActivePlanOutdated = false,
     this.onSelectPlan,
     this.onRenamePlan,
+    this.onRenamePlanVersion,
     this.onDeletePlan,
     this.onUpdateTaskStatus,
     this.onRegenerateRemaining,
@@ -40,6 +41,7 @@ class TodayScreen extends StatelessWidget {
   final bool isActivePlanOutdated;
   final ValueChanged<String>? onSelectPlan;
   final ValueChanged<SavedPlan>? onRenamePlan;
+  final ValueChanged<SavedPlan>? onRenamePlanVersion;
   final ValueChanged<SavedPlan>? onDeletePlan;
   final void Function(ScheduledTask task, ScheduledTaskStatus status)?
   onUpdateTaskStatus;
@@ -81,6 +83,7 @@ class TodayScreen extends StatelessWidget {
             activePlan: activePlan!,
             onSelectPlan: onSelectPlan,
             onRenamePlan: onRenamePlan,
+            onRenamePlanVersion: onRenamePlanVersion,
             onDeletePlan: onDeletePlan,
             onRegenerateRemaining: onRegenerateRemaining,
             onUndoPlanVersion: onUndoPlanVersion,
@@ -174,6 +177,7 @@ class _SavedPlanHeader extends StatelessWidget {
     required this.activePlan,
     required this.onSelectPlan,
     required this.onRenamePlan,
+    required this.onRenamePlanVersion,
     required this.onDeletePlan,
     this.onRegenerateRemaining,
     this.onUndoPlanVersion,
@@ -183,12 +187,14 @@ class _SavedPlanHeader extends StatelessWidget {
   final SavedPlan activePlan;
   final ValueChanged<String>? onSelectPlan;
   final ValueChanged<SavedPlan>? onRenamePlan;
+  final ValueChanged<SavedPlan>? onRenamePlanVersion;
   final ValueChanged<SavedPlan>? onDeletePlan;
   final VoidCallback? onRegenerateRemaining;
   final VoidCallback? onUndoPlanVersion;
 
   @override
   Widget build(BuildContext context) {
+    final mainPlans = _mainPlanRepresentatives();
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: Row(
@@ -206,11 +212,11 @@ class _SavedPlanHeader extends StatelessWidget {
                   isExpanded: true,
                   isDense: true,
                   items: [
-                    for (final plan in plans)
+                    for (final plan in mainPlans)
                       DropdownMenuItem(
                         value: plan.id,
                         child: Text(
-                          _planLabel(context, plan),
+                          _mainPlanLabel(plan),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -225,6 +231,13 @@ class _SavedPlanHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
+          IconButton.filledTonal(
+            key: const Key('plan-history-button'),
+            tooltip: 'View plan history',
+            onPressed: () => _showHistory(context),
+            icon: const Icon(Icons.history_rounded),
+          ),
+          const SizedBox(width: 4),
           if (onRegenerateRemaining != null)
             IconButton.filledTonal(
               key: const Key('regenerate-remaining-button'),
@@ -259,6 +272,114 @@ class _SavedPlanHeader extends StatelessWidget {
             icon: const Icon(Icons.delete_outline_rounded),
           ),
         ],
+      ),
+    );
+  }
+
+  List<SavedPlan> _mainPlanRepresentatives() {
+    final plansByRoot = <String, List<SavedPlan>>{};
+    for (final plan in plans) {
+      plansByRoot.putIfAbsent(plan.rootPlanId, () => []).add(plan);
+    }
+
+    final representatives = <SavedPlan>[];
+    for (final versions in plansByRoot.values) {
+      final activeVersion = versions.where((plan) => plan.id == activePlan.id);
+      if (activeVersion.isNotEmpty) {
+        representatives.add(activeVersion.first);
+        continue;
+      }
+      versions.sort(
+        (first, second) => second.createdAt.compareTo(first.createdAt),
+      );
+      representatives.add(versions.first);
+    }
+    representatives.sort((first, second) {
+      if (first.id == activePlan.id) return -1;
+      if (second.id == activePlan.id) return 1;
+      return first.name.toLowerCase().compareTo(second.name.toLowerCase());
+    });
+    return representatives;
+  }
+
+  String _mainPlanLabel(SavedPlan plan) {
+    final hasVersions = plans.any(
+      (candidate) =>
+          candidate.rootPlanId == plan.rootPlanId && candidate.id != plan.id,
+    );
+    if (!hasVersions) return plan.name;
+    return '${plan.name} · ${plan.id == activePlan.id ? 'Current' : 'Latest'}';
+  }
+
+  Future<void> _showHistory(BuildContext context) {
+    final plansByRoot = <String, List<SavedPlan>>{};
+    for (final plan in plans) {
+      plansByRoot.putIfAbsent(plan.rootPlanId, () => []).add(plan);
+    }
+    final groups = plansByRoot.values.toList()
+      ..sort(
+        (first, second) =>
+            first.first.createdAt.compareTo(second.first.createdAt),
+      );
+    for (final group in groups) {
+      group.sort(
+        (first, second) => first.createdAt.compareTo(second.createdAt),
+      );
+    }
+
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.8,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+                child: Text(
+                  'Plan history',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                  children: [
+                    for (final group in groups) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
+                        child: Text(
+                          group.first.name,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      for (var index = 0; index < group.length; index++)
+                        _HistoryPlanTile(
+                          plan: group[index],
+                          isCurrent: group[index].id == activePlan.id,
+                          isOriginal: index == 0,
+                          onRename: onRenamePlanVersion == null
+                              ? null
+                              : () {
+                                  Navigator.pop(context);
+                                  onRenamePlanVersion!(group[index]);
+                                },
+                          onTap: () {
+                            Navigator.pop(context);
+                            if (group[index].id != activePlan.id) {
+                              onSelectPlan?.call(group[index].id);
+                            }
+                          },
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -355,14 +476,66 @@ class _OutdatedPlanNotice extends StatelessWidget {
   }
 }
 
-String _planLabel(BuildContext context, SavedPlan plan) {
-  final localizations = MaterialLocalizations.of(context);
-  final date = localizations.formatShortDate(plan.createdAt);
-  final time = localizations.formatTimeOfDay(
-    TimeOfDay.fromDateTime(plan.createdAt),
-  );
-  final versionLabel = plan.parentPlanId == null ? 'Created' : 'Updated';
-  return '${plan.name} · $versionLabel $date, $time';
+class _HistoryPlanTile extends StatelessWidget {
+  const _HistoryPlanTile({
+    required this.plan,
+    required this.isCurrent,
+    required this.isOriginal,
+    required this.onTap,
+    this.onRename,
+  });
+
+  final SavedPlan plan;
+  final bool isCurrent;
+  final bool isOriginal;
+  final VoidCallback onTap;
+  final VoidCallback? onRename;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final localizations = MaterialLocalizations.of(context);
+    final date = localizations.formatShortDate(plan.createdAt);
+    final time = localizations.formatTimeOfDay(
+      TimeOfDay.fromDateTime(plan.createdAt),
+    );
+    return Card(
+      key: ValueKey('history-plan-${plan.id}'),
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      child: ListTile(
+        onTap: onTap,
+        leading: Icon(
+          isOriginal ? Icons.flag_outlined : Icons.history_rounded,
+          color: isCurrent ? colorScheme.primary : colorScheme.onSurfaceVariant,
+        ),
+        title: Text(
+          plan.versionName ??
+              (isOriginal ? 'Original plan' : 'Regenerated version'),
+        ),
+        subtitle: Text('$date, $time'),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isCurrent)
+              Chip(
+                label: const Text('Current'),
+                visualDensity: VisualDensity.compact,
+                backgroundColor: colorScheme.primaryContainer,
+              ),
+            if (onRename != null)
+              IconButton(
+                key: ValueKey('rename-history-plan-${plan.id}'),
+                tooltip: 'Rename this version',
+                onPressed: onRename,
+                icon: const Icon(Icons.edit_outlined),
+              )
+            else if (!isCurrent)
+              const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ImpossibleScheduleView extends StatelessWidget {

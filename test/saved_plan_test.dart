@@ -35,6 +35,7 @@ void main() {
       name: 'School day',
       createdAt: DateTime(2026, 9, 1, 14, 30),
       parentPlanId: 'parent-plan',
+      versionName: 'After shortening homework',
       rootPlanId: 'root-plan',
       tasks: tasks,
       availableTime: availableTime,
@@ -54,6 +55,7 @@ void main() {
     expect(restored.name, original.name);
     expect(restored.createdAt, original.createdAt);
     expect(restored.parentPlanId, 'parent-plan');
+    expect(restored.versionName, 'After shortening homework');
     expect(restored.rootPlanId, 'root-plan');
     expect(restored.tasks.map((task) => task.name), [
       'Required project',

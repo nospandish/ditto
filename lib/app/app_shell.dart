@@ -382,6 +382,24 @@ class _AppShellState extends State<AppShell> {
     await _savePlans();
   }
 
+  Future<void> _renamePlanVersion(SavedPlan plan) async {
+    final suggestedName =
+        plan.versionName ??
+        (plan.parentPlanId == null ? 'Original plan' : 'Regenerated version');
+    final name = await _requestPlanName(
+      suggestedName: suggestedName,
+      dialogTitle: 'Name this version',
+      reservedNames: const {},
+    );
+    if (!mounted || name == null || name == plan.versionName) return;
+    final index = _savedPlans.indexWhere(
+      (candidate) => candidate.id == plan.id,
+    );
+    if (index == -1) return;
+    setState(() => _savedPlans[index] = plan.copyWith(versionName: name));
+    await _savePlans();
+  }
+
   String _nextPlanName() {
     final usedNames = _savedPlans
         .map((plan) => plan.name.toLowerCase())
@@ -395,17 +413,22 @@ class _AppShellState extends State<AppShell> {
 
   Future<String?> _requestPlanName({
     required String suggestedName,
+    String dialogTitle = 'Name this plan',
+    Set<String>? reservedNames,
     SavedPlan? planBeingRenamed,
   }) {
-    final reservedNames = {
-      for (final plan in _savedPlans)
-        if (plan.id != planBeingRenamed?.id) plan.name.toLowerCase(),
-    };
+    final names =
+        reservedNames ??
+        {
+          for (final plan in _savedPlans)
+            if (plan.id != planBeingRenamed?.id) plan.name.toLowerCase(),
+        };
     return showDialog<String>(
       context: context,
       builder: (context) => _PlanNameDialog(
         initialName: suggestedName,
-        reservedNames: reservedNames,
+        dialogTitle: dialogTitle,
+        reservedNames: names,
       ),
     );
   }
@@ -567,6 +590,7 @@ class _AppShellState extends State<AppShell> {
         onGeneratePlan: _generatePlan,
         onSelectPlan: _selectPlan,
         onRenamePlan: _renamePlan,
+        onRenamePlanVersion: _renamePlanVersion,
         onDeletePlan: _deletePlan,
         onUpdateTaskStatus: _updateScheduledTaskStatus,
         onRegenerateRemaining: activePlan == null ? null : _regenerateRemaining,
@@ -635,10 +659,12 @@ enum _PlanSwitchChoice { saveAsNew, discard, cancel }
 class _PlanNameDialog extends StatefulWidget {
   const _PlanNameDialog({
     required this.initialName,
+    required this.dialogTitle,
     required this.reservedNames,
   });
 
   final String initialName;
+  final String dialogTitle;
   final Set<String> reservedNames;
 
   @override
@@ -673,7 +699,7 @@ class _PlanNameDialogState extends State<_PlanNameDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Name this plan'),
+      title: Text(widget.dialogTitle),
       content: Form(
         key: _formKey,
         child: TextFormField(

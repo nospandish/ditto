@@ -258,6 +258,31 @@ void main() {
     expect(regeneratedPlan['rootPlanId'], firstPlan['id']);
     expect((regeneratedPlan['historyTasks'] as List<dynamic>), hasLength(1));
 
+    await tester.tap(find.byKey(const Key('plan-history-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Plan history'), findsOneWidget);
+    expect(find.text('Original plan'), findsOneWidget);
+    expect(find.text('Regenerated version'), findsOneWidget);
+    await tester.tap(
+      find.byKey(ValueKey('rename-history-plan-${regeneratedPlan['id']}')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Name this version'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('plan-name-field')),
+      'After skipping history',
+    );
+    await tester.tap(find.byKey(const Key('confirm-plan-name')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('plan-history-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('After skipping history'), findsOneWidget);
+    await tester.tap(
+      find.byKey(ValueKey('history-plan-${regeneratedPlan['id']}')),
+    );
+    await tester.pumpAndSettle();
+
     await tester.tap(find.byKey(const Key('undo-plan-version-button')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('undo-plan-version-button')), findsNothing);
