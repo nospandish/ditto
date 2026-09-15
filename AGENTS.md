@@ -74,6 +74,18 @@ Use the existing project structure if it becomes more specific later.
 - Keep changes focused and easy to review.
 - After coding, run available formatting, analysis, or tests when possible.
 
+## Bug Reporting Workflow
+
+- Create one report per issue in `docs/bugs/` using
+  `docs/BUG_REPORT_TEMPLATE.md`.
+- Include exact reproduction steps, expected behavior, actual behavior, and
+  environment details.
+- Add screenshots, videos, logs, or test names when available.
+- Do not mark a bug fixed until a regression test or documented manual
+  verification exists.
+- Update the report status as work progresses.
+- Keep each report focused on one issue.
+
 ## Current Unknowns
 
 The following should be decided early:

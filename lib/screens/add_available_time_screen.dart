@@ -109,6 +109,19 @@ class _AddAvailableTimeScreenState extends State<AddAvailableTimeScreen> {
               ),
             ),
             const SizedBox(height: 24),
+            _AvailableTimeTimeline(
+              startMinutes: _startMinutes,
+              endMinutes: _endMinutes,
+              existingBlocks: widget.existingBlocks,
+              onChanged: (values) {
+                setState(() {
+                  _startMinutes = values.start.round();
+                  _endMinutes = values.end.round();
+                  _errorMessage = null;
+                });
+              },
+            ),
+            const SizedBox(height: 24),
             _TimeStepper(
               label: 'Start time',
               minutes: _startMinutes,
@@ -181,6 +194,147 @@ class _AddAvailableTimeScreenState extends State<AddAvailableTimeScreen> {
         ),
       ),
     );
+  }
+}
+
+class _AvailableTimeTimeline extends StatelessWidget {
+  const _AvailableTimeTimeline({
+    required this.startMinutes,
+    required this.endMinutes,
+    required this.existingBlocks,
+    required this.onChanged,
+  });
+
+  final int startMinutes;
+  final int endMinutes;
+  final List<AvailableTimeBlock> existingBlocks;
+  final ValueChanged<RangeValues> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      key: const Key('available-time-range-editor'),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 5),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLowest,
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune_rounded, size: 20, color: colorScheme.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Drag to choose your free time',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          SizedBox(
+            height: 38,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _TimeWindowPainter(
+                      blocks: existingBlocks,
+                      color: colorScheme.primary.withValues(alpha: 0.35),
+                      trackColor: colorScheme.surfaceContainerHighest,
+                    ),
+                  ),
+                ),
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 8,
+                    activeTrackColor: colorScheme.secondary,
+                    inactiveTrackColor: Colors.transparent,
+                    rangeThumbShape: const RoundRangeSliderThumbShape(
+                      enabledThumbRadius: 8,
+                    ),
+                    overlayShape: const RoundSliderOverlayShape(
+                      overlayRadius: 13,
+                    ),
+                  ),
+                  child: RangeSlider(
+                    key: const Key('available-time-range-slider'),
+                    min: 0,
+                    max: 24 * 60,
+                    divisions: (24 * 60) ~/ 15,
+                    values: RangeValues(
+                      startMinutes.toDouble(),
+                      endMinutes.toDouble(),
+                    ),
+                    onChanged: onChanged,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: const [
+              Text('12 AM', style: TextStyle(fontSize: 10)),
+              Text('6 AM', style: TextStyle(fontSize: 10)),
+              Text('12 PM', style: TextStyle(fontSize: 10)),
+              Text('6 PM', style: TextStyle(fontSize: 10)),
+              Text('12 AM', style: TextStyle(fontSize: 10)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimeWindowPainter extends CustomPainter {
+  const _TimeWindowPainter({
+    required this.blocks,
+    required this.color,
+    required this.trackColor,
+  });
+
+  final List<AvailableTimeBlock> blocks;
+  final Color color;
+  final Color trackColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final trackY = size.height / 2;
+    final track = Paint()
+      ..color = trackColor
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 8;
+    canvas.drawLine(
+      Offset.zero.translate(0, trackY),
+      Offset(size.width, trackY),
+      track,
+    );
+
+    final blockPaint = Paint()
+      ..color = color
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 8;
+    for (final block in blocks) {
+      final start = size.width * block.startMinutes / (24 * 60);
+      final end = size.width * block.endMinutes / (24 * 60);
+      canvas.drawLine(Offset(start, trackY), Offset(end, trackY), blockPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TimeWindowPainter oldDelegate) {
+    return oldDelegate.blocks != blocks ||
+        oldDelegate.color != color ||
+        oldDelegate.trackColor != trackColor;
   }
 }
 
