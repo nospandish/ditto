@@ -324,19 +324,33 @@ class _DurationRangeEditor extends StatelessWidget {
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
-          RangeSlider(
-            key: const Key('duration-range-slider'),
-            min: 15,
-            max: 480,
-            divisions: 31,
-            labels: RangeLabels(
-              _formatDuration(minimumMinutes),
-              _formatDuration(maximumMinutes),
+          SizedBox(
+            height: 44,
+            child: Stack(
+              key: const Key('duration-slider-scale'),
+              children: [
+                RangeSlider(
+                  key: const Key('duration-range-slider'),
+                  min: 15,
+                  max: 480,
+                  divisions: 31,
+                  labels: RangeLabels(
+                    _formatDuration(minimumMinutes),
+                    _formatDuration(maximumMinutes),
+                  ),
+                  values: RangeValues(sliderMinimum, sliderMaximum),
+                  activeColor: sliderColor,
+                  inactiveColor: sliderColor.withValues(alpha: 0.22),
+                  onChanged: onSliderChanged,
+                ),
+                const Positioned(
+                  left: 4,
+                  right: 4,
+                  bottom: 0,
+                  child: _DurationScale(),
+                ),
+              ],
             ),
-            values: RangeValues(sliderMinimum, sliderMaximum),
-            activeColor: sliderColor,
-            inactiveColor: sliderColor.withValues(alpha: 0.22),
-            onChanged: onSliderChanged,
           ),
           Row(
             children: [
@@ -374,6 +388,39 @@ class _DurationRangeEditor extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DurationScale extends StatelessWidget {
+  const _DurationScale();
+
+  static const _labels = <(String, double)>[
+    ('15m', 0),
+    ('1h', (60 - 15) / (480 - 15)),
+    ('2h', (120 - 15) / (480 - 15)),
+    ('4h', (240 - 15) / (480 - 15)),
+    ('8h', 1),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 14,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              for (final (label, position) in _labels)
+                Positioned(
+                  left: constraints.maxWidth * position - (label.length * 3.0),
+                  child: Text(label, style: const TextStyle(fontSize: 10)),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
