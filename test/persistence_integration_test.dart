@@ -158,11 +158,15 @@ void main() {
         find.byKey(const ValueKey('status-option-done-Finish lab notes')),
       );
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(
-          const ValueKey('status-menu-schedule-task-Review extra examples'),
-        ),
+      final skippedTaskStatusMenu = find.byKey(
+        const ValueKey('status-menu-schedule-task-Review extra examples'),
       );
+      await tester.drag(
+        find.byKey(const Key('schedule-timeline')),
+        const Offset(0, -250),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(skippedTaskStatusMenu);
       await tester.pumpAndSettle();
       await tester.tap(
         find.byKey(const ValueKey('status-option-skip-Review extra examples')),

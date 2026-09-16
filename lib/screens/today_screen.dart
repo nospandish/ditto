@@ -197,79 +197,80 @@ class _SavedPlanHeader extends StatelessWidget {
     final mainPlans = _mainPlanRepresentatives();
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: InputDecorator(
-              decoration: const InputDecoration(
-                labelText: 'Saved plan',
-                prefixIcon: Icon(Icons.bookmarks_outlined),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  key: const Key('saved-plan-picker'),
-                  value: activePlan.id,
-                  isExpanded: true,
-                  isDense: true,
-                  items: [
-                    for (final plan in mainPlans)
-                      DropdownMenuItem(
-                        value: plan.id,
-                        child: Text(
-                          _mainPlanLabel(plan),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+          InputDecorator(
+            decoration: const InputDecoration(
+              labelText: 'Saved plan',
+              prefixIcon: Icon(Icons.bookmarks_outlined),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                key: const Key('saved-plan-picker'),
+                value: activePlan.id,
+                isExpanded: true,
+                isDense: true,
+                items: [
+                  for (final plan in mainPlans)
+                    DropdownMenuItem(
+                      value: plan.id,
+                      child: Text(
+                        _mainPlanLabel(plan),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                  ],
-                  onChanged: onSelectPlan == null
-                      ? null
-                      : (value) {
-                          if (value != null) onSelectPlan!(value);
-                        },
-                ),
+                    ),
+                ],
+                onChanged: onSelectPlan == null
+                    ? null
+                    : (value) {
+                        if (value != null) onSelectPlan!(value);
+                      },
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton.filledTonal(
-            key: const Key('plan-history-button'),
-            tooltip: 'View plan history',
-            onPressed: () => _showHistory(context),
-            icon: const Icon(Icons.history_rounded),
-          ),
-          const SizedBox(width: 4),
-          if (onRegenerateRemaining != null)
-            IconButton.filledTonal(
-              key: const Key('regenerate-remaining-button'),
-              tooltip: 'Regenerate remaining plan',
-              onPressed: () => _confirmRegenerate(context),
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-          if (onUndoPlanVersion != null)
-            IconButton.filledTonal(
-              key: const Key('undo-plan-version-button'),
-              tooltip: 'Undo regeneration',
-              onPressed: onUndoPlanVersion,
-              icon: const Icon(Icons.undo_rounded),
-            ),
-          if (onRegenerateRemaining != null || onUndoPlanVersion != null)
-            const SizedBox(width: 4),
-          IconButton.filledTonal(
-            key: const Key('rename-saved-plan'),
-            tooltip: 'Rename selected plan',
-            onPressed: onRenamePlan == null
-                ? null
-                : () => onRenamePlan!(activePlan),
-            icon: const Icon(Icons.edit_outlined),
-          ),
-          const SizedBox(width: 4),
-          IconButton.filledTonal(
-            key: const Key('delete-saved-plan'),
-            tooltip: 'Delete selected plan',
-            onPressed: onDeletePlan == null
-                ? null
-                : () => _confirmDelete(context),
-            icon: const Icon(Icons.delete_outline_rounded),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 4,
+            children: [
+              IconButton.filledTonal(
+                key: const Key('plan-history-button'),
+                tooltip: 'View plan history',
+                onPressed: () => _showHistory(context),
+                icon: const Icon(Icons.history_rounded),
+              ),
+              if (onRegenerateRemaining != null)
+                IconButton.filledTonal(
+                  key: const Key('regenerate-remaining-button'),
+                  tooltip: 'Regenerate remaining plan',
+                  onPressed: () => _confirmRegenerate(context),
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              if (onUndoPlanVersion != null)
+                IconButton.filledTonal(
+                  key: const Key('undo-plan-version-button'),
+                  tooltip: 'Undo regeneration',
+                  onPressed: onUndoPlanVersion,
+                  icon: const Icon(Icons.undo_rounded),
+                ),
+              IconButton.filledTonal(
+                key: const Key('rename-saved-plan'),
+                tooltip: 'Rename selected plan',
+                onPressed: onRenamePlan == null
+                    ? null
+                    : () => onRenamePlan!(activePlan),
+                icon: const Icon(Icons.edit_outlined),
+              ),
+              IconButton.filledTonal(
+                key: const Key('delete-saved-plan'),
+                tooltip: 'Delete selected plan',
+                onPressed: onDeletePlan == null
+                    ? null
+                    : () => _confirmDelete(context),
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
+            ],
           ),
         ],
       ),
