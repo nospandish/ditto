@@ -830,13 +830,15 @@ class _ScheduleHistory extends StatelessWidget {
         for (final item in items)
           Card(
             margin: const EdgeInsets.only(bottom: 8),
-            color: colorScheme.surfaceContainerHighest,
+            color: _statusBackgroundColor(item.status, colorScheme),
             child: ListTile(
               leading: Icon(
                 item.status == ScheduledTaskStatus.completed
                     ? Icons.check_circle_rounded
                     : Icons.skip_next_rounded,
-                color: colorScheme.onSurfaceVariant,
+                color:
+                    _statusColor(item.status, isPast: true) ??
+                    colorScheme.onSurfaceVariant,
               ),
               title: Text(
                 item.task.name,
@@ -845,6 +847,11 @@ class _ScheduleHistory extends StatelessWidget {
               subtitle: Text(
                 '${item.status == ScheduledTaskStatus.completed ? 'Completed' : 'Skipped'} · '
                 '${_formatTime(context, item.startMinutes)}–${_formatTime(context, item.endMinutes)}',
+                style: TextStyle(
+                  color:
+                      _statusColor(item.status, isPast: true) ??
+                      colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ),
@@ -896,13 +903,15 @@ class _TimelineItem extends StatelessWidget {
     final isCompleted = item.status == ScheduledTaskStatus.completed;
     final isSkipped = item.status == ScheduledTaskStatus.skipped;
     final isResolved = isCompleted || isSkipped;
-    final effectiveTitleColor = isResolved
-        ? colorScheme.onSurfaceVariant
-        : titleColor;
-    final effectiveStateColor = isResolved ? colorScheme.outline : stateColor;
-    final effectiveCardColor = isResolved
-        ? colorScheme.surfaceContainerHighest
-        : cardColor;
+    final statusColor = _statusColor(
+      item.status,
+      isPast: state == _TimelineTaskState.previous,
+    );
+    final effectiveTitleColor = statusColor ?? titleColor;
+    final effectiveStateColor = statusColor ?? stateColor;
+    final effectiveCardColor = statusColor == null
+        ? cardColor
+        : statusColor.withValues(alpha: 0.10);
 
     return IntrinsicHeight(
       child: Row(
@@ -1043,10 +1052,10 @@ class _TimelineItem extends StatelessWidget {
                           _TaskDetailChip(
                             label: item.task.importance.label,
                             color:
-                                isResolved ||
-                                    state == _TimelineTaskState.previous
-                                ? colorScheme.outline
-                                : priorityColor,
+                                statusColor ??
+                                (state == _TimelineTaskState.previous
+                                    ? colorScheme.outline
+                                    : priorityColor),
                           ),
                         ],
                       ),
@@ -1059,14 +1068,14 @@ class _TimelineItem extends StatelessWidget {
                                   ? Icons.check_circle_rounded
                                   : Icons.skip_next_rounded,
                               size: 18,
-                              color: colorScheme.onSurfaceVariant,
+                              color: statusColor,
                             ),
                             const SizedBox(width: 6),
                             Text(
                               isCompleted ? 'Completed' : 'Skipped',
                               style: Theme.of(context).textTheme.labelLarge
                                   ?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
+                                    color: statusColor,
                                     fontWeight: FontWeight.w700,
                                   ),
                             ),
@@ -1295,4 +1304,28 @@ String _formatTime(BuildContext context, int minutes) {
   return MaterialLocalizations.of(
     context,
   ).formatTimeOfDay(TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60));
+}
+
+Color? _statusColor(ScheduledTaskStatus status, {required bool isPast}) {
+  if (status == ScheduledTaskStatus.completed) {
+    return const Color(0xFF3F7D5A);
+  }
+  if (status == ScheduledTaskStatus.skipped) {
+    return const Color(0xFFB7791F);
+  }
+  if (isPast) return const Color(0xFFA64B4B);
+  return null;
+}
+
+Color _statusBackgroundColor(
+  ScheduledTaskStatus status,
+  ColorScheme colorScheme,
+) {
+  if (status == ScheduledTaskStatus.completed) {
+    return const Color(0xFFDDEDE2);
+  }
+  if (status == ScheduledTaskStatus.skipped) {
+    return const Color(0xFFFFF1CC);
+  }
+  return colorScheme.surfaceContainerHighest;
 }

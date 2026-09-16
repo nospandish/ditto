@@ -211,7 +211,7 @@ void main() {
     expect(find.text('Organize notes'), findsOneWidget);
   });
 
-  testWidgets('colors the current task blue and previous tasks gray', (
+  testWidgets('colors the current task blue and missed tasks red', (
     tester,
   ) async {
     final result = ScheduleBuildResult(
@@ -256,12 +256,7 @@ void main() {
     );
     final currentShape = currentCard.shape! as RoundedRectangleBorder;
 
-    expect(
-      previousCard.color,
-      Theme.of(
-        tester.element(find.byType(TodayScreen)),
-      ).colorScheme.surfaceContainerHighest,
-    );
+    expect(previousCard.color, const Color(0xFFA64B4B).withValues(alpha: 0.10));
     expect(currentCard.color, const Color(0xFF2563EB).withValues(alpha: 0.08));
     expect(currentShape.side.color, const Color(0xFF2563EB));
     expect(find.byKey(const Key('current-task-badge')), findsOneWidget);
